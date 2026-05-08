@@ -27,21 +27,21 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
     print("=" * 70)
 
     # Step 1: Discover reports
-    print("\n[1/6] 🔍 Discovering BRVM reports...")
+    print("\n[1/6] Discovering BRVM reports...")
     try:
         result = discover_brvm_reports(companies=companies, years=years, max_pages=max_pages)
         reports = json.loads(result)
-        print(f"     ✅ Found {len(reports)} reports")
+        print(f"      Found {len(reports)} reports")
         if not reports:
             print("     (No reports found - try different filters)")
             return
     except Exception as e:
-        print(f"     ❌ Error: {e}")
-        return
+        print(f"     Error: {e}")
+        return  
 
     # Keep only limit reports
     reports = reports[:limit]
-    print(f"     📌 Processing {len(reports)} reports (limit: {limit})")
+    print(f"     Processing {len(reports)} reports (limit: {limit})")
 
     # Step 2: Load existing checksums (for dedup)
     print("\n[2/6] Loading existing checksums (for deduplication)...")
@@ -60,24 +60,24 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
 
         # Download
         try:
-            print(f"     📥 Downloading PDF...")
+            print(f"      Downloading PDF...")
             download_result = download_report_pdf(json.dumps(report), "data/raw")
             download_data = json.loads(download_result)
             local_path = download_data.get("local_path")
-            print(f"     ✅ Downloaded to: {local_path}")
+            print(f"     Downloaded to: {local_path}")
         except Exception as e:
-            print(f"     ❌ Download error: {e}")
+            print(f"     Download error: {e}")
             results.append({"status": "error", "report": report, "error": str(e)})
             continue
 
         # Validate
         if local_path:
             try:
-                print(f"     🔍 Validating PDF...")
+                print(f"     Validating PDF...")
                 validation = validate_pdf_file(local_path)
                 val_data = json.loads(validation)
                 if not val_data.get("valid"):
-                    print(f"     ❌ Invalid PDF: {val_data.get('reason')}")
+                    print(f"      Invalid PDF: {val_data.get('reason')}")
                     results.append({
                         "status": "invalid_pdf",
                         "report": report,
@@ -85,9 +85,9 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
                         "reason": val_data.get("reason"),
                     })
                     continue
-                print(f"     ✅ PDF is valid")
+                print(f"       PDF is valid")
             except Exception as e:
-                print(f"     ❌ Validation error: {e}")
+                print(f"      Validation error: {e}")
                 results.append({
                     "status": "error",
                     "report": report,
@@ -99,13 +99,13 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
         # Compute checksum
         if local_path:
             try:
-                print(f"     🔐 Computing checksum...")
+                print(f"      Computing checksum...")
                 checksum = compute_file_checksum(local_path)
-                print(f"     ✅ Checksum: {checksum[:16]}...")
+                print(f"     Checksum: {checksum[:16]}...")
 
                 # Check for duplicates
                 if checksum in existing_checksums:
-                    print(f"     ⚠️  Duplicate detected (already downloaded)")
+                    print(f"      Duplicate detected (already downloaded)")
                     results.append({
                         "status": "duplicate",
                         "report": report,
@@ -115,7 +115,7 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
                     continue
 
                 # Save metadata
-                print(f"     💾 Saving metadata...")
+                print(f"     Saving metadata...")
                 metadata_result = save_report_metadata(
                     json.dumps(report),
                     local_path,
@@ -123,7 +123,7 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
                     "success",
                 )
                 metadata_data = json.loads(metadata_result)
-                print(f"     ✅ Metadata: {metadata_data.get('metadata_path')}")
+                print(f"     Metadata: {metadata_data.get('metadata_path')}")
 
                 results.append({
                     "status": "success",
@@ -133,7 +133,7 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
                     "metadata_path": metadata_data.get("metadata_path"),
                 })
             except Exception as e:
-                print(f"     ❌ Checksum/metadata error: {e}")
+                print(f"      Checksum/metadata error: {e}")
                 results.append({
                     "status": "error",
                     "report": report,
@@ -142,13 +142,13 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
                 })
 
     # Step 6: Save log
-    print(f"\n[6/6] 📝 Saving ingestion log...")
+    print(f"\n[6/6]  Saving ingestion log...")
     try:
         log_result = save_ingestion_log(json.dumps(results), "data/logs")
         log_data = json.loads(log_result)
-        print(f"     ✅ Log saved: {log_data.get('log_path')}")
+        print(f"      Log saved: {log_data.get('log_path')}")
     except Exception as e:
-        print(f"     ❌ Log error: {e}")
+        print(f"      Log error: {e}")
 
     # Summary
     print("\n" + "=" * 70)
@@ -160,15 +160,15 @@ def run_simple_ingestion(companies="", years="", max_pages=2, limit=5):
     errors = sum(1 for r in results if r.get("status") == "error")
 
     print(f"Total processed:       {len(results)}")
-    print(f"✅ Successful:         {success}")
-    print(f"⚠️  Duplicates:        {duplicates}")
-    print(f"❌ Invalid PDFs:       {invalid}")
-    print(f"🔴 Errors:            {errors}")
+    print(f"Successful:         {success}")
+    print(f" Duplicates:        {duplicates}")
+    print(f" Invalid PDFs:       {invalid}")
+    print(f"Errors:            {errors}")
 
     if success > 0:
-        print(f"\n✅ {success} report(s) successfully ingested!")
-        print(f"📁 Location: data/raw/BRVM/")
-        print(f"📊 Metadata: *.pdf.manifest.json files")
+        print(f"\n{success} report(s) successfully ingested!")
+        print(f"Location: data/raw/BRVM/")
+        print(f"Metadata: *.pdf.manifest.json files")
 
     print("\n" + "=" * 70)
 
