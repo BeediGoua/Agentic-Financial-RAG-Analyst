@@ -13,7 +13,21 @@ from app.ingest.model_provider import build_model
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Financial RAG Analyst - BRVM Report Ingestion Pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Single company, single year
+  python -m app.ingest.run_smol_ingestion --companies "CIE CI" --years "2024"
+  
+  # Multiple companies, test with Ollama
+  python -m app.ingest.run_smol_ingestion --provider ollama --companies "CIE CI,SONATEL"
+  
+  # All companies, specific year
+  python -m app.ingest.run_smol_ingestion --years "2024" --limit 30
+        """,
+    )
     parser.add_argument(
         "--companies",
         type=str,
@@ -41,13 +55,15 @@ def main():
     parser.add_argument(
         "--provider",
         type=str,
-        default="ollama",
-        choices=["ollama", "huggingface"],
+        default="auto",
+        choices=["auto", "ollama", "huggingface"],
+        help="LLM provider: auto (automatic fallback), ollama (local), or huggingface (API)",
     )
     parser.add_argument(
         "--model-id",
         type=str,
         default=None,
+        help="Custom model ID (optional)",
     )
     args = parser.parse_args()
 
