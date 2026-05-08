@@ -4,17 +4,17 @@
 set -e
 
 echo "========================================"
-echo "🚀 Agentic Financial RAG - Phase 1"
+echo "Agentic Financial RAG - Phase 1"
 echo "========================================"
 echo ""
 
 # Check Python environment
 if ! command -v python &> /dev/null; then
-    echo "❌ Python not found"
+    echo "Python not found"
     exit 1
 fi
 
-echo "✅ Python: $(python --version)"
+echo "Python: $(python --version)"
 echo ""
 
 # Run simple ingestion (no LLM required)
@@ -29,8 +29,8 @@ python simple_ingest.py \
 
 echo ""
 echo "========================================"
-echo "✅ Ingestion complete!"
-echo "📁 Check results:"
+echo " Ingestion complete!"
+echo " Check results:"
 echo "   - PDFs: data/raw/BRVM/"
 echo "   - Logs: data/logs/"
 echo "========================================"
