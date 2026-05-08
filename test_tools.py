@@ -51,24 +51,24 @@ def test_checksum_functions():
         validation = validate_pdf_file(str(test_file))
         val_result = json.loads(validation)
         if val_result.get("valid"):
-            print(f"✅ PDF validation passed")
+            print(f"PDF validation passed")
         else:
-            print(f"❌ PDF validation failed: {val_result.get('reason')}")
+            print(f"PDF validation failed: {val_result.get('reason')}")
 
         # Test checksum
         print("Computing file checksum...")
         checksum = compute_file_checksum(str(test_file))
-        print(f"✅ Checksum computed: {checksum[:16]}...")
+        print(f"Checksum computed: {checksum[:16]}...")
 
         # Test loading existing checksums
         print("Loading existing checksums...")
         existing = load_existing_checksums("data/raw")
         checksums = json.loads(existing)
-        print(f"✅ Found {len(checksums)} existing checksums")
+        print(f"Found {len(checksums)} existing checksums")
 
         return True
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return False
     finally:
         test_file.unlink(missing_ok=True)
@@ -103,11 +103,11 @@ def test_storage_functions():
         ]
         log_result = save_ingestion_log(json.dumps(log_data), "data/logs")
         log_path = json.loads(log_result)
-        print(f"✅ Ingestion log created: {log_path.get('log_path')}")
+        print(f"Ingestion log created: {log_path.get('log_path')}")
 
         return True
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         return False
 
 
@@ -124,18 +124,18 @@ def run_all_tests():
     print("\n" + "=" * 60)
     print("TEST SUMMARY")
     print("=" * 60)
-    print(f"BRVM Discovery: {'✅ PASS' if reports else '⚠️  PARTIAL (no reports found)'}")
-    print(f"Storage Functions: {'✅ PASS' if storage_ok else '❌ FAIL'}")
-    print(f"Checksum Functions: {'✅ PASS' if checksum_ok else '❌ FAIL'}")
+    print(f"BRVM Discovery: {' PASS' if reports else ' PARTIAL (no reports found)'}")
+    print(f"Storage Functions: {'PASS' if storage_ok else ' FAIL'}")
+    print(f"Checksum Functions: {'PASS' if checksum_ok else 'FAIL'}")
 
     if storage_ok and checksum_ok:
-        print("\n🎉 All core tools are working!")
+        print("\nAll core tools are working!")
         print("\nNext step: Configure an LLM server")
         print("  - Option 1: ollama serve (localhost:11434)")
         print("  - Option 2: Use HuggingFace API (needs HUGGINGFACE_API_KEY)")
         print("  - Option 3: Use --mock flag for testing")
     else:
-        print("\n⚠️  Some tests failed. Check the output above.")
+        print("\n Some tests failed. Check the output above.")
 
 
 if __name__ == "__main__":
