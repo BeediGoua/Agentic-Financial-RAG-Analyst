@@ -15,7 +15,8 @@ class ChunkEmbedder:
     Rôle :
     - lire les chunks JSONL ;
     - calculer les embeddings ;
-    - stocker les vecteurs en JSONL.
+    - stocker les vecteurs en JSONL ;
+    - conserver les métadonnées utiles pour FAISS, retrieval et citations.
     """
 
     def __init__(
@@ -44,7 +45,6 @@ class ChunkEmbedder:
         strategy = relative.parts[0]
         
         # On retire le premier dossier (la stratégie) du chemin relatif pour éviter la duplication
-        # car on l'ajoute explicitement juste après self.embeddings_dir
         relative_no_strategy = Path(*relative.parts[1:])
 
         output_path = (
@@ -143,15 +143,23 @@ class ChunkEmbedder:
                 embedding_model=model_key,
                 vector_dimension=len(vector),
                 embedding=[float(x) for x in vector],
+
                 source_pdf=chunk["source_pdf"],
                 source_url=chunk.get("source_url"),
                 company=chunk.get("company"),
                 year=chunk.get("year"),
                 document_type=chunk.get("document_type"),
+                language=chunk.get("language"),
+
                 page_start=chunk.get("page_start"),
                 page_end=chunk.get("page_end"),
                 section=chunk.get("section"),
+                parent_id=chunk.get("parent_id"),
                 content_type=chunk.get("content_type"),
+
+                char_count=chunk.get("char_count"),
+                word_count=chunk.get("word_count"),
+
                 text=chunk.get("text") or "",
             )
 
@@ -188,7 +196,10 @@ class ChunkEmbedder:
 
             chunk_files = list(strategy_dir.rglob("*.chunks.jsonl"))
 
-            for chunk_file in tqdm(chunk_files, desc=f"Embedding {strategy}/{model_key}"):
+            for chunk_file in tqdm(
+                chunk_files,
+                desc=f"Embedding {strategy}/{model_key}",
+            ):
                 results.append(
                     self.embed_file(
                         chunk_file=chunk_file,

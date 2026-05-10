@@ -1,12 +1,11 @@
 from pydantic import BaseModel
 
 
-class EmbeddingRecord(BaseModel):
+class VectorMetadata(BaseModel):
+    vector_id: int
     chunk_id: str
     chunking_strategy: str
     embedding_model: str
-    vector_dimension: int
-    embedding: list[float]
 
     source_pdf: str
     source_url: str | None = None
@@ -25,3 +24,15 @@ class EmbeddingRecord(BaseModel):
     word_count: int | None = None
 
     text: str
+
+
+class IndexingResult(BaseModel):
+    status: str
+    strategy: str
+    model: str
+    input_path: str
+    index_path: str | None = None
+    metadata_path: str | None = None
+    vectors_count: int = 0
+    vector_dimension: int | None = None
+    error: str | None = None

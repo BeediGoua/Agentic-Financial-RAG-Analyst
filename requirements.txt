@@ -19,3 +19,10 @@ numpy
 
 #phase 5
 sentence-transformers
+
+#phase 6
+chromadb
+faiss-cpu
+sentence-transformers
+python-dotenv
+tqdm
