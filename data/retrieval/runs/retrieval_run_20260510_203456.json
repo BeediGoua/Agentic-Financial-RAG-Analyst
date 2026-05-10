@@ -1,0 +1,135 @@
+{
+  "overall_status": "PASS",
+  "query": "résultat net chiffre d'affaires EBITDA Orange CI 2025",
+  "methods": [
+    "hybrid"
+  ],
+  "strategies": [
+    "section_aware"
+  ],
+  "models": [
+    "mini_lm_multilingual"
+  ],
+  "top_k": 5,
+  "quality": {
+    "status": "PASS",
+    "total_runs": 1,
+    "success_runs": 1,
+    "empty_runs": 0,
+    "error_runs": 0,
+    "total_results": 5
+  },
+  "runs": [
+    {
+      "status": "success",
+      "query": "résultat net chiffre d'affaires EBITDA Orange CI 2025",
+      "method": "hybrid",
+      "strategy": "section_aware",
+      "model": "mini_lm_multilingual",
+      "top_k": 5,
+      "results_count": 5,
+      "results": [
+        {
+          "rank": 1,
+          "score": 0.7607485672054762,
+          "retrieval_method": "hybrid",
+          "chunk_id": "section_aware_f23517f2f85fc77b",
+          "chunking_strategy": "section_aware",
+          "embedding_model": "mini_lm_multilingual",
+          "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+          "source_url": "https://www.brvm.org/fr/rapports-societe-cotes/orange-ci?field_type_rapport_tid=All",
+          "company": "ORANGE CI",
+          "year": "2025",
+          "document_type": "financial_statements",
+          "language": "fr",
+          "page_start": 1,
+          "page_end": 1,
+          "section": "unknown_section",
+          "parent_id": null,
+          "content_type": "text",
+          "text": "1\nGROUPE ORANGE CI\nRésultats financiers consolidés à fin décembre 2025\nAbidjan – Février 2026"
+        },
+        {
+          "rank": 2,
+          "score": 0.7454495845271337,
+          "retrieval_method": "hybrid",
+          "chunk_id": "section_aware_315c2953b8d00e7f",
+          "chunking_strategy": "section_aware",
+          "embedding_model": "mini_lm_multilingual",
+          "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\quarterly_report\\orange_ci_2025_quarterly_report_756e6174.pdf",
+          "source_url": "https://www.brvm.org/fr/rapports-societe-cotes/orange-ci?field_type_rapport_tid=All",
+          "company": "ORANGE CI",
+          "year": "2025",
+          "document_type": "quarterly_report",
+          "language": "fr",
+          "page_start": 1,
+          "page_end": 1,
+          "section": "unknown_section",
+          "parent_id": null,
+          "content_type": "text",
+          "text": "1\nOrange Restricted\nGROUPE ORANGE CI\nRésultats financiers consolidés - Mars 2025\nAbidjan – Avril 2025"
+        },
+        {
+          "rank": 3,
+          "score": 0.5353238461618932,
+          "retrieval_method": "hybrid",
+          "chunk_id": "section_aware_d5c08f70ba60595a",
+          "chunking_strategy": "section_aware",
+          "embedding_model": "mini_lm_multilingual",
+          "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+          "source_url": "https://www.brvm.org/fr/rapports-societe-cotes/orange-ci?field_type_rapport_tid=All",
+          "company": "ORANGE CI",
+          "year": "2025",
+          "document_type": "financial_statements",
+          "language": "fr",
+          "page_start": 2,
+          "page_end": 2,
+          "section": "unknown_section",
+          "parent_id": null,
+          "content_type": "text",
+          "text": "2\nInterne Orange\nAGENDA\n1. Commentaires sur les résultats financiers 2025\n2. Etats Financiers consolidés 2025\n3. Projet d’affectation du résultat 2025\np. 3\np. 4\np. 13"
+        },
+        {
+          "rank": 4,
+          "score": 0.531711311463192,
+          "retrieval_method": "hybrid",
+          "chunk_id": "section_aware_b8673c0580849dd4",
+          "chunking_strategy": "section_aware",
+          "embedding_model": "mini_lm_multilingual",
+          "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+          "source_url": "https://www.brvm.org/fr/rapports-societe-cotes/orange-ci?field_type_rapport_tid=All",
+          "company": "ORANGE CI",
+          "year": "2025",
+          "document_type": "financial_statements",
+          "language": "fr",
+          "page_start": 3,
+          "page_end": 3,
+          "section": "performance",
+          "parent_id": null,
+          "content_type": "text",
+          "text": "3\nGroupe Orange Côte d’Ivoire\nRésultats financiers consolidés au 31 Décembre 2025\n+4,5%\nParc FMI (en milliers)\neCapex (Gxof)\n38 544\n35 372\n2025\n2024\nChiffres clés\n184,0\n159,1\nCôte d’Ivoire\nBurkina Faso\nLibéria\nMontants en milliards de FCFA\nChiffre d’affaires, données IFRS\nAu 31 décembre 2025, le chiffre d’affaires consolidé du Groupe Orange Côte d’Ivoire s’établit à 1 197,1 milliards de FCFA, affichant une\nprogression de 10,4 % par rapport à l’exercice précédent. Ce résultat illustre la solidité de la performance opérationnelle dans les trois pays.\nOrange Côte d’Ivoire enregistre une croissance soutenue, portée par des investissements ciblés et efficaces dans les réseaux mobiles et\nfibre optique. Cette dynamique s’appuie également sur une stratégie commerciale robuste et une forte adhésion aux offres commerciales.\nOrange Burkina Faso maintient une trajectoire ascendante grâce à la forte croissance des bases actives et à l’accélération des\ninvestissements d’extension des réseaux mobile et fixe.\nOrange Libéria affiche également une croissance solide, stimulée par la mise en œuvre du tarif plancher sur la voix, les investissements dans\nle réseau et une activité commerciale particulièrement dynamique, favorisant ainsi les activations sur la data, Orange Money et Orange\nEnergies.\nEBITDAaL, données IFRS\nL’EBITDAaL atteint 424,1 milliards de FCFA au 31 décembre 2025, soit une progression de 8,7 %. Cette amélioration reflète la progression\ndu chiffre d’affaires, associée à une bonne maîtrise des coûts d’exploitation, malgré l’augmentation des charges liée à l’intensification des"
+        },
+        {
+          "rank": 5,
+          "score": 0.531366265587048,
+          "retrieval_method": "hybrid",
+          "chunk_id": "section_aware_46cd62b0b8a4a727",
+          "chunking_strategy": "section_aware",
+          "embedding_model": "mini_lm_multilingual",
+          "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\quarterly_report\\orange_ci_2025_quarterly_report_756e6174.pdf",
+          "source_url": "https://www.brvm.org/fr/rapports-societe-cotes/orange-ci?field_type_rapport_tid=All",
+          "company": "ORANGE CI",
+          "year": "2025",
+          "document_type": "quarterly_report",
+          "language": "fr",
+          "page_start": 2,
+          "page_end": 2,
+          "section": "revenue",
+          "parent_id": null,
+          "content_type": "text",
+          "text": "2\nOrange Restricted\nGroupe Orange Côte d’Ivoire\nRésultats financiers consolidés – T1 2025\n+4,5%\nCôte d’Ivoire\nBurkina Faso\nLibéria\nMontants en milliards de FCFA\nChiffre d’affaires, données IFRS\nLe Chiffre d’affaires consolidé sur les 3 pays s’élève à 283,6 Milliards FCFA, en croissance de 8,6% grâce à la\nperformance des trois entités.\nOrange Cote d’Ivoire poursuit son programme d'investissements, notamment le plan de modernisation du réseau,\nl’accélération du déploiement de la fibre et l’extension du réseau mobile dans les zones rurales. Ces\ninvestissements soutenus ont permis d’améliorer la qualité du réseau, d’accroître les recrutements de nouveaux\nclients et d’augmenter les usages sur le mobile et la fibre.\nOrange Burkina Faso continue sa bonne performance grâce à Orange Money et aux effets positifs des\ninvestissements réseau qui impactent fortement la croissance de la data mobile.\nOrange Libéria poursuit sa croissance grâce à la qualité de réseau et à la mise en œuvre du tarif plancher.\nEBITDAaL, données IFRS\nL’EBITDAaL est en hausse de 6,1% grâce à la bonne performance du chiffre d’affaires dans un contexte\nd’augmentation des commissions Orange Money dû à l’agressivité commerciale en Côte d’Ivoire et au Burkina\nFaso.\nRésultat Net, données IFRS\nLe résultat net consolidé s’élève à 38,6 Milliards FCFA, en hausse de +1,9 % au premier trimestre 2025 par rapport\nà l’année dernière. Cette hausse est principalement portée par la performance du revenu.\nmars-25\nmars-24\n%\nValeur\nChiffre d'affaires\n283,6 261,1\n8,6%\n22,5\nEBITDAaL\n98,7 93,0\n6,1%\n5,7\nRésultat net\n38,6 37,9\n1,9%\n0,7"
+        }
+      ]
+    }
+  ]
+}

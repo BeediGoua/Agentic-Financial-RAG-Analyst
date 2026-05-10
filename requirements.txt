@@ -26,3 +26,5 @@ faiss-cpu
 sentence-transformers
 python-dotenv
 tqdm
+rank-bm25
+numpy
