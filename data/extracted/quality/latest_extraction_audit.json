@@ -1,0 +1,321 @@
+{
+  "overall_status": "PASS",
+  "companies": [
+    "ORANGE CI"
+  ],
+  "years": [
+    "2025"
+  ],
+  "pages_audit": {
+    "status": "PASS",
+    "documents_count": 5,
+    "total_pages": 26,
+    "empty_pages": 1,
+    "low_quality_pages": 10,
+    "ocr_pages": 0,
+    "empty_rate": 0.038461538461538464,
+    "low_quality_rate": 0.38461538461538464,
+    "ocr_rate": 0.0,
+    "examples": [
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 2,
+        "word_count": 28,
+        "quality_status": "ok",
+        "sample_text": "2\nInterne Orange\nAGENDA\n1. Commentaires sur les résultats financiers 2025\n2. Etats Financiers consolidés 2025\n3. Projet d’affectation du résultat 2025\np. 3 \np. 4\np. 13"
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 3,
+        "word_count": 368,
+        "quality_status": "ok",
+        "sample_text": "3\nGroupe Orange Côte d’Ivoire\nRésultats financiers consolidés au 31 Décembre 2025\n+4,5%\nParc FMI (en milliers)    \neCapex (Gxof)\n38 544\n35 372\n2025\n2024\nChiffres clés\n184,0\n159,1\nCôte d’Ivoire\nBurkina Faso\nLibéria\nMontants en milliards de FCFA\nChiffre d’affaires, données IFRS\nAu 31 décembre 2025, le chiffre d’affaires consolidé du Groupe Orange Côte d’Ivoire s’établit à 1 197,1 milliards de FCFA, affichant une \nprogression de 10,4 % par rapport à l’exercice précédent. Ce résultat illustre la sol"
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 5,
+        "word_count": 167,
+        "quality_status": "ok",
+        "sample_text": "5\nNote aux lecteurs\n▪\nLes états financiers consolidés comprennent les comptes de Orange Côte d’Ivoire et de toutes ses filiales contrôlées \ndirectement ou indirectement. \n▪\nLes filiales Orange Burkina, Orange Money Burkina, Orange Libéria, Orange Money Libéria, Orange Money Côte \nd’ivoire, Orange Côte d’Ivoire Participations, Orange Cloud & Cyber Solutions et Côte d’ivoire Câbles sont \nconsolidées selon la méthode de l’intégration globale.\n▪\nLe Groupement Orange Service détenu à 22,64% a été int"
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 6,
+        "word_count": 119,
+        "quality_status": "ok",
+        "sample_text": "6\nPérimètre de consolidation\nPays\nSociété\nMode de \ndétention\nPourcentage \nde détention\nNature du \ncontrôle\nMéthode de \nconsolidation\nCôte d’Ivoire\nOrange Côte d’Ivoire (OCI)\nSociété mère\nConsolidante\nIntégration globale\nOrange Money Côte d’Ivoire (OMCI)\nDirecte\n99,99%\nContrôle\nIntégration globale\nOrange Côte d’Ivoire Participations (OCIP)\nDirecte\n100,00%\nContrôle\nIntégration globale\nOrange Cloud & Cyber Solutions (OCCS)\nDirecte\n100,00%\nContrôle\nIntégration globale\nCôte d’Ivoire Câbles (CIC)\nDire"
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 7,
+        "word_count": 265,
+        "quality_status": "ok",
+        "sample_text": "7\nEtats financiers consolidés 2025 IFRS_Compte de résultat \nEtats Financiers provisoires vérifiés par les commissaires aux comptes et non encore approuvés par l’assemblée générale\n(en Milliards FCFA)\nNote\n2025\n2024\n2025/2024\nChiffre d'affaires\n4.1\n1 197,1\n1 084,1\n113,0\n10,4%\nAchats externes\n4.2\n(483,1)\n(427,5)\n(55,6)\n(13,0,%)\nAutres produits opérationnels\n4.8\n30,6\n17,4\n13,2\n76,0%\nAutres charges opérationnelles\n4.4\n(37,3)\n(33,1)\n(4,2)\n(12,6,%)\nCharges de personnel\n4.5\n(75,5)\n(70,4)\n(5,1)\n(7,3,%)\n"
+      }
+    ]
+  },
+  "tables_audit": {
+    "status": "PASS",
+    "documents_count": 4,
+    "total_tables": 28,
+    "avg_rows": 3.3214285714285716,
+    "avg_columns": 2.892857142857143,
+    "examples": [
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 3,
+        "row_count": 9,
+        "column_count": 5,
+        "sample_rows": [
+          [
+            "Indicateurs",
+            "FY 2025",
+            "FY 2024",
+            "Variation N/N-1",
+            null
+          ],
+          [
+            null,
+            "",
+            "",
+            "%",
+            "Valeur"
+          ],
+          [
+            "Chiffre d'affaires",
+            "1 197,1",
+            "1 084,1",
+            "10,4%",
+            "113,0"
+          ],
+          [
+            "EBITDAaL",
+            "424,1",
+            "390,3",
+            "8,7%",
+            "33,8"
+          ],
+          [
+            "Résultat d'exploitation",
+            "287,2",
+            "263,2",
+            "9,1%",
+            "24,1"
+          ]
+        ]
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 6,
+        "row_count": 12,
+        "column_count": 6,
+        "sample_rows": [
+          [
+            "Pays",
+            "Société",
+            "Mode de\ndétention",
+            "Pourcentage\nde détention",
+            "Nature du\ncontrôle",
+            "Méthode de\nconsolidation"
+          ],
+          [
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          [
+            "Côte d’Ivoire",
+            "Orange Côte d’Ivoire (OCI)",
+            "",
+            "Société mère",
+            "Consolidante",
+            "Intégration globale"
+          ],
+          [
+            null,
+            "Orange Money Côte d’Ivoire (OMCI)",
+            "Directe",
+            "99,99%",
+            "Contrôle",
+            "Intégration globale"
+          ],
+          [
+            null,
+            "Orange Côte d’Ivoire Participations (OCIP)",
+            "Directe",
+            "100,00%",
+            "Contrôle",
+            "Intégration globale"
+          ]
+        ]
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 7,
+        "row_count": 10,
+        "column_count": 6,
+        "sample_rows": [
+          [
+            "(en Milliards FCFA)",
+            "Note",
+            "2025",
+            "2024",
+            "2025/2024",
+            null
+          ],
+          [
+            "Chiffre d'affaires",
+            "4.1",
+            "1 197,1",
+            "1 084,1",
+            "113,0",
+            "10,4%"
+          ],
+          [
+            "Achats externes\nAutres produits opérationnels\nAutres charges opérationnelles\nCharges de personnel\nImpôts et taxes d'exploitation (hors IS)\nDotations aux amortissements\nDotations aux amortissements des droits d'usage des actifs loués\nRésultat de cession de titres et d'activités\nCoûts des restructurations et d'intégration\nPertes de valeur des immobilisations\nRésultat des entités mises en équivalence",
+            "4.2\n4.8\n4.4\n4.5\n4.3\n4.6",
+            "(483,1)\n30,6\n(37,3)\n(75,5)\n(181,5)\n(141,7)\n(20,8)\n0,0\n0,0\n0,0\n(0,5)",
+            "(427,5)\n17,4\n(33,1)\n(70,4)\n(150,2)\n(133,5)\n(20,5)\n(2,2)\n(1,0)\n(0,2)\n0,4",
+            "(55,6)\n13,2\n(4,2)\n(5,1)\n(31,3)\n(8,2)\n(0,3)\n2,2\n1,0\n0,2\n(0,9)",
+            "(13,0,%)\n76,0%\n(12,6,%)\n(7,3,%)\n(20,8,%)\n(6,1,%)\n(1,3,%)\n101,3%\n100,0%\n100,0%\n(233,0,%)"
+          ],
+          [
+            "Résultat d'exploitation",
+            "",
+            "287,2",
+            "263,2",
+            "24,1",
+            "9,1%"
+          ],
+          [
+            "Coût de l'endettement financier brut\nCharges d'intérêts des dettes locatives\nProduits et charges sur actifs constitutifs de l'endettement net\nGains (pertes) de change\nAutres produits et charges financiers",
+            "",
+            "(22,8)\n(5,4)\n0,9\n(0,6)\n(0,9)",
+            "(18,0)\n(6,4)\n0,6\n(0,4)\n3,7",
+            "(4,8)\n1,0\n0,3\n(0,1)\n(4,7)",
+            "(26,8,%)\n15,5%\n52,1%\n(31,1,%)\n(124,9,%)"
+          ]
+        ]
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 8,
+        "row_count": 8,
+        "column_count": 6,
+        "sample_rows": [
+          [
+            "(en Milliards FCFA)",
+            "Note",
+            "2 0 2 5",
+            "2024",
+            "2025/2024",
+            null
+          ],
+          [
+            "Actif",
+            "",
+            "",
+            "",
+            "Valeur",
+            "%"
+          ],
+          [
+            "Ecart d'acquisition\nAutres immobilisations incorporelles\nImmobilisations corporelles\nTitres mis en équivalence\nDroits d'usage des immobilisations louées\nActifs financiers non courants\nAutres actifs non courants\nImpôts différés actifs",
+            "5.1\n5.2\n5.2\n5.2\n5.7\n5.5\n5.6",
+            "194,5\n120,1\n665,1\n1,7\n64,3\n18,0\n0,0\n54,2",
+            "201,6\n133,9\n628,5\n2,3\n77,1\n16,2\n1,0\n49,4",
+            "(7,1)\n(13,8)\n36,6\n(0,5)\n(12,8)\n1,8\n(1,0)\n4,8",
+            "(3,5,%)\n(10,3,%)\n5,8%\n(23,8,%)\n(16,5,%)\n11,3%\n(99,3,%)\n9,8%"
+          ],
+          [
+            "Total de l'actif non courant",
+            "",
+            "1 118,0",
+            "1 109,9",
+            "8,1",
+            "0,7%"
+          ],
+          [
+            "Stocks\nCréances clients\nActifs financiers courants\nAutres actifs courants\nCréance d'impôt et taxes d'exploitation\nCréance impôt sur les sociétés\nCharges constatées d'avance\nDisponibilités et quasi-disponibilités",
+            "5.3\n5.4\n5.7\n5.5\n5.8",
+            "26,0\n171,4\n0,2\n934,3\n65,1\n5,8\n7,5\n225,8",
+            "30,9\n170,2\n0,2\n627,3\n71,4\n5,0\n7,2\n287,0",
+            "(4,8)\n1,2\n0,0\n306,9\n(6,3)\n0,8\n0,3\n(61,2)",
+            "(15,7,%)\n0,7%\n6,3%\n48,9%\n(8,8,%)\n15,6%\n4,2%\n(21,3,%)"
+          ]
+        ]
+      },
+      {
+        "source_pdf": "data\\raw\\reports\\brvm\\orange_ci\\2025\\financial_statements\\orange_ci_2025_financial_statements_08abaa47.pdf",
+        "company": "ORANGE CI",
+        "year": "2025",
+        "page_number": 9,
+        "row_count": 9,
+        "column_count": 6,
+        "sample_rows": [
+          [
+            "(en Milliards FCFA)",
+            "Note",
+            "2 0 2 5",
+            "2024",
+            "2025/2024",
+            null
+          ],
+          [
+            "Passif",
+            "",
+            "",
+            "",
+            "Valeur",
+            "%"
+          ],
+          [
+            "Capital social\nPrimes d’émission\nRéserves\nEcarts de conversion\nActions propres\nCapitaux propres attribuables aux propriétaires de la société mère\nCapitaux propres attribuables aux participations ne donnant pas le contrôle",
+            "6.7",
+            "6,0\n88,8\n534,8\n(5,8)\n(7,1)\n616,7\n91,1",
+            "6,0\n88,8\n521,3\n7,4\n(7,1)\n616,3\n97,5",
+            "0,0\n0,0\n13,6\n(13,2)\n0,0\n0,4\n(6,4)",
+            "0,0%\n0,0%\n2,6%\n(178,7,%)\n0,0%\n0,1%\n(6,5,%)"
+          ],
+          [
+            "Total capitaux propres",
+            "",
+            "707,8",
+            "713,8",
+            "(6,0)",
+            "(0,8,%)"
+          ],
+          [
+            "Dettes fournisseurs d'immobilisations non courantes\nPassifs financiers non courants\nDettes locatives non courantes\nAvantages du personnel non courants\nProvision pour dementèlement non courantes\nAutres passifs non courants\nImpôts differés passifs",
+            "6.1\n8\n6.2\n6.3",
+            "0,0\n224,0\n53,8\n22,6\n1,8\n22,5\n1,4",
+            "0,0\n159,8\n72,9\n21,6\n14,3\n21,2\n1,2",
+            "0,0\n64,2\n(19,1)\n1,0\n(12,4)\n1,3\n0,2",
+            "-\n40,2%\n(26,2,%)\n4,5%\n(87,2,%)\n5,9%\n14,1%"
+          ]
+        ]
+      }
+    ]
+  }
+}
