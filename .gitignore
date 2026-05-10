@@ -30,6 +30,7 @@ data/vector_db/
 data/logs/
 data/evaluation/generated/
 data/metadata/
+data/retrieval/
 
 # PDF / datasets
 *.pdf
