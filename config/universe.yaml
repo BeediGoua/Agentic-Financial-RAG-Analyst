@@ -1,7 +1,98 @@
-tickers:
-  - SONATEL
-  - CIE CI
-  - PALM CI
-  - BOA CI
-  - ECOBANK CI
-  - NESTLE CI
+companies:
+  - ticker: SNTS
+    canonical_name: SONATEL SENEGAL
+    short_name: SONATEL
+    country: SENEGAL
+    sector: TELECOM
+    aliases:
+      - SONATEL
+      - SONATEL SENEGAL
+      - SONATEL SN
+      - SOCIETE NATIONALE DES TELECOMMUNICATIONS DU SENEGAL
+      - SONATEL SA
+
+  - ticker: ORAC
+    canonical_name: ORANGE COTE D'IVOIRE
+    short_name: ORANGE CI
+    country: COTE DIVOIRE
+    sector: TELECOM
+    aliases:
+      - ORANGE CI
+      - ORANGE COTE D'IVOIRE
+      - ORANGE CÔTE D'IVOIRE
+      - ORANGE COTE DIVOIRE
+      - ORANGE CI SA
+
+  - ticker: CIEC
+    canonical_name: COMPAGNIE IVOIRIENNE D'ELECTRICITE
+    short_name: CIE CI
+    country: COTE D'IVOIRE
+    sector: UTILITIES
+    aliases:
+      - CIE CI
+      - CIE
+      - CIE COTE D'IVOIRE
+      - CIE CÔTE D'IVOIRE
+      - COMPAGNIE IVOIRIENNE D'ELECTRICITE
+      - COMPAGNIE IVOIRIENNE D’ÉLECTRICITÉ
+
+  - ticker: ECOC
+    canonical_name: ECOBANK COTE D'IVOIRE
+    short_name: ECOBANK CI
+    country: COTE D'IVOIRE
+    sector: BANKING
+    aliases:
+      - ECOBANK
+      - ECOBANK CI
+      - ECOBANK COTE D'IVOIRE
+      - ECOBANK CÔTE D'IVOIRE
+      - ECOBANK CI SA
+
+  - ticker: BOAC
+    canonical_name: BANK OF AFRICA COTE D'IVOIRE
+    short_name: BOA CI
+    country: COTE D'IVOIRE
+    sector: BANKING
+    aliases:
+      - BOA
+      - BOA CI
+      - BANK OF AFRICA
+      - BANK OF AFRICA CI
+      - BANK OF AFRICA COTE D'IVOIRE
+      - BANK OF AFRICA CÔTE D'IVOIRE
+
+  - ticker: PALC
+    canonical_name: PALM COTE D'IVOIRE
+    short_name: PALMCI
+    country: COTE D'IVOIRE
+    sector: AGRIBUSINESS
+    aliases:
+      - PALM CI
+      - PALMCI
+      - PALM COTE D'IVOIRE
+      - PALM CÔTE D'IVOIRE
+
+  - ticker: NTLC
+    canonical_name: NESTLE COTE D'IVOIRE
+    short_name: NESTLE CI
+    country: COTE D'IVOIRE
+    sector: CONSUMER_GOODS
+    aliases:
+      - NESTLE
+      - NESTLE CI
+      - NESTLE COTE D'IVOIRE
+      - NESTLÉ CÔTE D'IVOIRE
+      - NESTLE CI SA
+
+  - ticker: SIBC
+    canonical_name: SOCIETE IVOIRIENNE DE BANQUE
+    short_name: SIB CI
+    country: COTE D'IVOIRE
+    sector: BANKING
+    aliases:
+      - SIB
+      - SIB CI
+      - SOCIETE IVOIRIENNE DE BANQUE
+      - SOCIÉTÉ IVOIRIENNE DE BANQUE
+      - SIB COTE D'IVOIRE
+      - SIB CÔTE D'IVOIRE

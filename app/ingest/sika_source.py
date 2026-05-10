@@ -14,6 +14,7 @@ from pathlib import Path
 import sys
 
 from app.core.manifests import create_manifest, write_manifest
+from app.ingest.utils import extract_tickers_from_universe
 
 # --- Copie/Adaptation du Client Richbourse depuis l'ancien projet ---
 import json
@@ -119,10 +120,7 @@ def run_ingestion(probe: bool = False, force: bool = False):
     out_dir.mkdir(parents=True, exist_ok=True)
     manifests_dir = base_dir / "data" / "manifests"
     
-    tickers = config_universe.get('tickers', [])
-    if isinstance(tickers, dict):
-        tickers = list(tickers.keys())
-        
+    tickers = extract_tickers_from_universe(config_universe)
     if probe:
         logging.info("PROBE MODE: Testing 1 ticker only.")
         tickers = tickers[:1]

@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from app.ingest.brvm_source import BRVMSourceAgent
 from app.ingest.quality import QualityAgent
 from app.ingest.storage import StorageAgent
 from app.ingest.supervisor import SupervisorAgent
+from app.ingest.utils import extract_company_aliases_from_universe, load_yaml
+
+
+def build_company_filters(companies_arg: str | None, universe_config: dict) -> list[str] | str | None:
+    if companies_arg:
+        return companies_arg
+    aliases = extract_company_aliases_from_universe(universe_config)
+    return aliases or None
 
 
 def main() -> None:
@@ -50,8 +59,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    base_dir = Path(__file__).resolve().parent.parent.parent
+    universe_config = load_yaml(base_dir / "config" / "universe.yaml")
+    company_filters = build_company_filters(args.companies, universe_config)
+
     source_agent = BRVMSourceAgent(
-        companies=args.companies,
+        companies=company_filters,
         years=args.years,
         max_pages=args.max_pages,
     )

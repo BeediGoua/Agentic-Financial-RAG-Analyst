@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from pathlib import Path
+
+import yaml
 
 
 def slugify(text: str) -> str:
@@ -13,43 +16,86 @@ def slugify(text: str) -> str:
     return text.strip("_") or "unknown"
 
 
-def sha256_file(path: str | Path) -> str:
-    """Compute SHA256 checksum for a file."""
-    file_path = Path(path)
-    h = hashlib.sha256()
-
-    with file_path.open("rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-
-    return h.hexdigest()
+def normalize_text(text: str | None) -> str:
+    """Normalize text for fuzzy matching across names and aliases."""
+    if text is None:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(text))
+    normalized = normalized.encode("ascii", "ignore").decode("ascii")
+    normalized = re.sub(r"\s+", " ", normalized.strip())
+    return normalized.lower()
 
 
-def parse_csv_filter(value: str | None) -> list[str] | None:
-    """Parse a comma-separated filter string. Empty means no filter."""
-    if not value:
-        return None
+def load_yaml(path: str | Path) -> dict:
+    """Load a YAML file and return a dict, defaulting to an empty dict."""
+    path = Path(path)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
-    values = [x.strip().lower() for x in value.split(",") if x.strip()]
-    return values or None
+
+def extract_tickers_from_universe(universe_config: dict) -> list[str]:
+    """Extract tickers from a universe config in either old or new format."""
+    if not isinstance(universe_config, dict):
+        return []
+
+    companies = universe_config.get("companies")
+    tickers: list[str] = []
+
+    if isinstance(companies, list):
+        for item in companies:
+            if isinstance(item, dict) and item.get("ticker"):
+                tickers.append(str(item["ticker"]))
+            elif isinstance(item, str):
+                tickers.append(item)
+    elif isinstance(companies, dict):
+        for item in companies.values():
+            if isinstance(item, dict) and item.get("ticker"):
+                tickers.append(str(item["ticker"]))
+
+    if tickers:
+        return tickers
+
+    tickers = universe_config.get("tickers", [])
+    if isinstance(tickers, dict):
+        return list(tickers.keys())
+    if isinstance(tickers, list):
+        return [str(x) for x in tickers if x]
+
+    return []
 
 
-def parse_year_filter(value: str | None) -> list[str] | None:
-    """Parse a year filter supporting commas and ranges (e.g., '2023,2024' or '2020-2024')."""
-    if not value:
-        return None
-        
-    years = set()
-    for part in value.split(","):
-        part = part.strip()
-        if "-" in part and len(part.split("-")) == 2:
-            try:
-                start_year, end_year = map(int, part.split("-"))
-                for y in range(start_year, end_year + 1):
-                    years.add(str(y))
-            except ValueError:
-                years.add(part)
-        elif part:
-            years.add(part)
-            
-    return sorted(list(years)) if years else None
+def extract_company_aliases_from_universe(universe_config: dict) -> list[str]:
+    """Extract a list of company aliases and canonical names from universe config."""
+    if not isinstance(universe_config, dict):
+        return []
+
+    aliases: list[str] = []
+    companies = universe_config.get("companies")
+    entries = []
+
+    if isinstance(companies, list):
+        entries = companies
+    elif isinstance(companies, dict):
+        entries = list(companies.values())
+
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+
+        for key in ("aliases", "canonical_name", "short_name", "ticker"):
+            value = item.get(key)
+            if isinstance(value, str) and value.strip():
+                aliases.append(value.strip())
+            elif isinstance(value, list):
+                aliases.extend([str(v).strip() for v in value if isinstance(v, str) and v.strip()])
+
+    if not aliases:
+        fallback = universe_config.get("tickers", [])
+        if isinstance(fallback, list):
+            aliases.extend([str(x) for x in fallback if x])
+        elif isinstance(fallback, dict):
+            aliases.extend([str(k) for k in fallback.keys()])
+
+    return list(dict.fromkeys(aliases))

@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from app.ingest.schemas import ReportDocument
-from app.ingest.utils import parse_csv_filter, parse_year_filter
+from app.ingest.utils import normalize_text, parse_csv_filter, parse_year_filter
 
 
 BRVM_LISTING_PAGES = [
@@ -29,12 +29,14 @@ class BRVMSourceAgent:
 
     def __init__(
         self,
-        companies: str | None = None,
+        companies: list[str] | str | None = None,
         years: str | None = None,
         max_pages: int = 5,
         sleep_seconds: float = 0.5,  # Réduit de 1.0 à 0.5
     ):
-        self.companies = parse_csv_filter(companies)
+        if isinstance(companies, str):
+            companies = parse_csv_filter(companies)
+        self.companies = [normalize_text(c) for c in companies] if companies else None
         self.years = parse_year_filter(years)
         self.max_pages = max_pages
         self.sleep_seconds = sleep_seconds
@@ -129,9 +131,11 @@ class BRVMSourceAgent:
 
     def report_matches(self, report: ReportDocument) -> bool:
         if self.companies:
-            company = (report.company or "").lower()
-            title = (report.title or "").lower()
-            if not any(c in company or c in title for c in self.companies):
+            text = " ".join(
+                [report.company or "", report.title or "", report.document_type or ""]
+            )
+            normalized = normalize_text(text)
+            if not any(alias in normalized for alias in self.companies):
                 return False
 
         if self.years:
