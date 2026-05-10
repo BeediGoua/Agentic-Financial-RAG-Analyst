@@ -6,11 +6,13 @@ EMBEDDING_MODELS = {
         "model_name": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         "query_prefix": "",
         "passage_prefix": "",
+        "dimension": 384,
     },
     "e5_small": {
         "model_name": "intfloat/multilingual-e5-small",
         "query_prefix": "query: ",
         "passage_prefix": "passage: ",
+        "dimension": 384,
     },
 }
 

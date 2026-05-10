@@ -87,11 +87,23 @@ class ChunkEmbedder:
         output_path = self.build_output_path(chunk_file, model_key)
 
         if output_path.exists() and not force:
+            # On compte les lignes pour garder un rapport précis même si on skip
+            count = 0
+            try:
+                with output_path.open("r", encoding="utf-8") as f:
+                    for _ in f:
+                        count += 1
+            except Exception:
+                count = 0
+
+            config = get_model_config(model_key)
             return {
                 "status": "already_exists",
                 "model": model_key,
                 "input_path": str(chunk_file),
                 "output_path": str(output_path),
+                "records_count": count,
+                "vector_dimension": config.get("dimension", 0),
             }
 
         config = get_model_config(model_key)
