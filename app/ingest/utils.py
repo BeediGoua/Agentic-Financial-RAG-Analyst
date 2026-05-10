@@ -32,3 +32,24 @@ def parse_csv_filter(value: str | None) -> list[str] | None:
 
     values = [x.strip().lower() for x in value.split(",") if x.strip()]
     return values or None
+
+
+def parse_year_filter(value: str | None) -> list[str] | None:
+    """Parse a year filter supporting commas and ranges (e.g., '2023,2024' or '2020-2024')."""
+    if not value:
+        return None
+        
+    years = set()
+    for part in value.split(","):
+        part = part.strip()
+        if "-" in part and len(part.split("-")) == 2:
+            try:
+                start_year, end_year = map(int, part.split("-"))
+                for y in range(start_year, end_year + 1):
+                    years.add(str(y))
+            except ValueError:
+                years.add(part)
+        elif part:
+            years.add(part)
+            
+    return sorted(list(years)) if years else None

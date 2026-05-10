@@ -5,10 +5,13 @@ import time
 from urllib.parse import urljoin
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 from app.ingest.schemas import ReportDocument
-from app.ingest.utils import parse_csv_filter
+from app.ingest.utils import parse_csv_filter, parse_year_filter
 
 
 BRVM_LISTING_PAGES = [
@@ -29,17 +32,18 @@ class BRVMSourceAgent:
         companies: str | None = None,
         years: str | None = None,
         max_pages: int = 5,
-        sleep_seconds: float = 1.0,
+        sleep_seconds: float = 0.5,  # Réduit de 1.0 à 0.5
     ):
         self.companies = parse_csv_filter(companies)
-        self.years = parse_csv_filter(years)
+        self.years = parse_year_filter(years)
         self.max_pages = max_pages
         self.sleep_seconds = sleep_seconds
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
+        self.session.verify = False
 
     def get_html(self, url: str) -> str:
-        response = self.session.get(url, timeout=60)
+        response = self.session.get(url, timeout=30)  # Réduit de 60 à 30
         response.raise_for_status()
         return response.text
 
@@ -138,10 +142,13 @@ class BRVMSourceAgent:
 
     def discover_reports(self) -> list[ReportDocument]:
         reports: list[ReportDocument] = []
+        from tqdm import tqdm
 
-        for listing_base_url in BRVM_LISTING_PAGES:
-            for page in range(self.max_pages):
-                listing_url = listing_base_url if page == 0 else f"{listing_base_url}?page={page}"
+        total_steps = len(BRVM_LISTING_PAGES) * self.max_pages
+        with tqdm(total=total_steps, desc="Exploration BRVM", unit="page") as pbar:
+            for listing_base_url in BRVM_LISTING_PAGES:
+                for page in range(self.max_pages):
+                    listing_url = listing_base_url if page == 0 else f"{listing_base_url}?page={page}"
 
                 try:
                     html = self.get_html(listing_url)
@@ -166,6 +173,8 @@ class BRVMSourceAgent:
                                 company=self.infer_company(title),
                                 year=self.extract_year(full_text),
                                 document_type=self.infer_document_type(full_text),
+                                source_url=listing_url,
+                                language="fr",
                             )
 
                             if self.report_matches(report):
@@ -174,9 +183,11 @@ class BRVMSourceAgent:
                         time.sleep(self.sleep_seconds)
 
                     except Exception as e:
-                        print(f"[WARN] Page document impossible: {document_page} | {e}")
+                        print(f"\n[WARN] Page document impossible: {document_page} | {e}")
+                        continue  # Continue avec la page suivante
 
                 time.sleep(self.sleep_seconds)
+                pbar.update(1)
 
         unique: dict[str, ReportDocument] = {}
         for report in reports:

@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument(
         "--max-pages",
         type=int,
-        default=5,
+        default=2,  # Réduit de 5 à 2 pour être plus rapide
         help="Number of BRVM listing pages to scan.",
     )
     parser.add_argument(
@@ -35,6 +35,11 @@ def main() -> None:
         type=int,
         default=None,
         help="Maximum number of discovered reports to process.",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show detailed progress information.",
     )
     parser.add_argument(
         "--root-dir",
@@ -57,6 +62,7 @@ def main() -> None:
         source_agent=source_agent,
         quality_agent=quality_agent,
         storage_agent=storage_agent,
+        verbose=args.verbose,
     )
 
     summary = supervisor.run(limit=args.limit)
@@ -70,10 +76,13 @@ def main() -> None:
     print(f"Doublons              : {summary['duplicates']}")
     print(f"PDF invalides         : {summary['invalid_pdfs']}")
     print(f"Erreurs               : {summary['errors']}")
+    print(f"Taux de succès        : {summary['success_rate']*100:.1f}%")
+    print(f"État général          : {summary['overall_status']}")
     print(f"Log                   : {summary['log_path']}")
+    print(f"Health Report         : {summary['health_report_path']}")
 
     print("\nDétail JSON")
-    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    print(json.dumps({k: v for k, v in summary.items() if k != "results"}, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

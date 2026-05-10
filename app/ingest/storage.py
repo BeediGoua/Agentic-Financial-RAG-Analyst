@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from app.ingest.schemas import ReportDocument
 from app.ingest.utils import slugify
@@ -24,6 +28,7 @@ class StorageAgent:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
         self.session = requests.Session()
+        self.session.verify = False
 
     def build_path(self, report: ReportDocument) -> Path:
         source = slugify(report.source or "unknown_source")
@@ -31,9 +36,18 @@ class StorageAgent:
         year = report.year or "unknown_year"
         document_type = report.document_type or "other"
 
-        filename = Path(urlparse(report.pdf_url).path).name
-        if not filename.lower().endswith(".pdf"):
-            filename = slugify(report.title or "report") + ".pdf"
+        # Générer un nom significatif (ex: orange_ci_2024_annual_report.pdf)
+        base_name = f"{company}_{year}_{document_type}"
+        
+        # Nettoyer le nom de base
+        base_name = re.sub(r'[<>:"/\\|?*\s]', '_', base_name)
+        
+        # On garde une trace de l'URL originale via un petit hash pour éviter les collisions
+        # au cas où on télécharge 2 documents du même type la même année
+        import hashlib
+        short_hash = hashlib.md5(report.pdf_url.encode()).hexdigest()[:6]
+        
+        filename = f"{base_name}_{short_hash}.pdf"
 
         output_dir = self.root_dir / source / company / year / document_type
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -46,7 +60,7 @@ class StorageAgent:
         if output_path.exists() and output_path.stat().st_size > 0:
             return output_path
 
-        response = self.session.get(report.pdf_url, timeout=90)
+        response = self.session.get(report.pdf_url, timeout=60)  # Réduit de 90 à 60
         response.raise_for_status()
         output_path.write_bytes(response.content)
 
