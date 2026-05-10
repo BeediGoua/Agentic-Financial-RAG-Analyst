@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 venv/
 
+data/ 
+data/extracted/
+data/chunks/
 data/raw/
 data/metadata/
 data/logs/
