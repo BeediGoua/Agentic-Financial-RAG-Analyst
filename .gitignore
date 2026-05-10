@@ -31,6 +31,8 @@ data/logs/
 data/evaluation/generated/
 data/metadata/
 data/retrieval/
+data/reranking/
+
 
 # PDF / datasets
 *.pdf
