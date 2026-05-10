@@ -31,9 +31,10 @@ class BRVMSourceAgent:
     Agent déterministe.
     Rôle :
     - découvrir les rapports PDF BRVM ;
-    - gérer les filtres ticker / nom société via universe.yaml ;
+    - gérer ticker / nom société via universe.yaml ;
     - scanner les pages générales BRVM ;
-    - scanner aussi les pages société dédiées.
+    - scanner les pages société dédiées ;
+    - produire des ReportDocument propres pour le stockage RAW.
     """
 
     def __init__(
@@ -72,23 +73,56 @@ class BRVMSourceAgent:
 
     @staticmethod
     def extract_year(text: str) -> str | None:
-        match = re.search(r"(20\d{2})", text)
-        return match.group(1) if match else None
+        """
+        Priorité :
+        1. année d'exercice ;
+        2. année de rapport annuel ;
+        3. trimestre / semestre ;
+        4. dernier 20XX trouvé.
+
+        Exemple :
+        20250221 - Etats financiers - Exercice 2024 - Orange CI
+        => 2024, pas 2025.
+        """
+        normalized = normalize_text(text)
+        normalized = normalized.replace("_", " ").replace("-", " ")
+
+        priority_patterns = [
+            r"exercice\s+(20\d{2})",
+            r"annee\s+(20\d{2})",
+            r"rapport\s+annuel.*?(20\d{2})",
+            r"rapport\s+dactivites.*?(20\d{2})",
+            r"trimestre\s+(20\d{2})",
+            r"semestre\s+(20\d{2})",
+        ]
+
+        for pattern in priority_patterns:
+            match = re.search(pattern, normalized)
+            if match:
+                return match.group(1)
+
+        years = re.findall(r"(20\d{2})", normalized)
+
+        if years:
+            return years[-1]
+
+        return None
 
     @staticmethod
     def infer_document_type(text: str) -> str:
-        text = normalize_text(text)
+        normalized = normalize_text(text)
+        normalized = normalized.replace("_", " ").replace("-", " ")
 
-        if "rapport" in text and "annuel" in text:
+        if "rapport" in normalized and "annuel" in normalized:
             return "annual_report"
 
-        if "etats financiers" in text or "etat financier" in text:
+        if "etats financiers" in normalized or "etat financier" in normalized:
             return "financial_statements"
 
-        if "trimestre" in text or "trimestriel" in text:
+        if "trimestre" in normalized or "trimestriel" in normalized:
             return "quarterly_report"
 
-        if "semestre" in text or "semestriel" in text:
+        if "semestre" in normalized or "semestriel" in normalized:
             return "half_year_report"
 
         return "other_report"
@@ -159,13 +193,6 @@ class BRVMSourceAgent:
         return sorted(pdfs)
 
     def get_company_report_pages(self) -> list[str]:
-        """
-        Retourne les pages BRVM dédiées aux sociétés.
-
-        Exemple :
-        ORAC -> https://www.brvm.org/fr/rapports-societe-cotes/orange-ci
-        """
-
         pages: list[str] = []
 
         if not self.companies:
@@ -231,10 +258,13 @@ class BRVMSourceAgent:
 
     def discover_from_listing_pages(self) -> list[ReportDocument]:
         reports: list[ReportDocument] = []
-
         total_steps = len(BRVM_LISTING_PAGES) * self.max_pages
 
-        with tqdm(total=total_steps, desc="Exploration BRVM listings", unit="page") as pbar:
+        with tqdm(
+            total=total_steps,
+            desc="Exploration BRVM listings",
+            unit="page",
+        ) as pbar:
             for listing_base_url in BRVM_LISTING_PAGES:
                 for page in range(self.max_pages):
                     listing_url = (
@@ -294,19 +324,10 @@ class BRVMSourceAgent:
                     html = self.get_html(company_page)
                     title = self.extract_title(html)
 
-                    company_meta = self.universe.get_company_by_filter(company_page)
-                    forced_company = None
-
-                    if company_meta:
-                        forced_company = (
-                            company_meta.get("short_name")
-                            or company_meta.get("canonical_name")
-                            or company_meta.get("ticker")
-                        )
+                    company_meta = self.universe.get_company_by_page_url(company_page)
+                    forced_company = self.universe.get_display_name(company_meta)
 
                     document_pages = self.find_document_pages(html, company_page)
-
-                    # Cas 1 : la page société contient directement des PDF.
                     direct_pdf_links = self.find_pdf_links(html, company_page)
 
                     for pdf_url in direct_pdf_links:
@@ -320,7 +341,6 @@ class BRVMSourceAgent:
                         if self.report_matches(report):
                             reports.append(report)
 
-                    # Cas 2 : la page société liste des pages détail.
                     for document_page in document_pages:
                         try:
                             doc_html = self.get_html(document_page)
@@ -354,14 +374,6 @@ class BRVMSourceAgent:
         return reports
 
     def discover_reports(self) -> list[ReportDocument]:
-        """
-        Point d’entrée principal.
-        Combine :
-        - pages générales BRVM ;
-        - pages dédiées aux sociétés ;
-        - déduplication par pdf_url.
-        """
-
         reports: list[ReportDocument] = []
 
         reports.extend(self.discover_from_listing_pages())

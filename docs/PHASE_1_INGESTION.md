@@ -97,3 +97,4 @@ Test 3 — tester BRVMSourceAgent sans télécharger
 python -m app.ingest.brvm_source
 Test 4 — lancer seulement BRVM
 python -m app.ingest.run_all --only-brvm --companies "ORAC" --years "2025" --limit 3 --max-pages 2 --verbose
+python -m app.ingest.run_all --only-brvm --companies "ORAC" --years "2024,2026" --verbose 

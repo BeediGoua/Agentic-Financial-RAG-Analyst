@@ -11,10 +11,24 @@ def normalize_company_text(text: str | None) -> str:
 
     text = unicodedata.normalize("NFKD", str(text))
     text = text.encode("ascii", "ignore").decode("ascii")
-    return " ".join(text.lower().replace("’", "'").split())
+    text = text.replace("’", "'")
+    text = text.replace("-", " ")
+    text = text.replace("_", " ")
+
+    return " ".join(text.lower().split())
 
 
 class UniverseManager:
+    """
+    Référentiel métier des sociétés BRVM.
+
+    Rôle :
+    - convertir ticker -> aliases ;
+    - retrouver une société depuis un nom ;
+    - retrouver une société depuis une URL BRVM ;
+    - fournir canonical_name / short_name / slug.
+    """
+
     def __init__(self, config_path: str = "config/universe.yaml"):
         self.config_path = Path(config_path)
 
@@ -29,6 +43,26 @@ class UniverseManager:
         companies = self.data.get("companies", [])
         return companies if isinstance(companies, list) else []
 
+    def company_candidates(self, company: dict) -> list[str]:
+        candidates: list[str] = []
+
+        for key in (
+            "ticker",
+            "canonical_name",
+            "short_name",
+            "brvm_report_slug",
+            "brvm_company_page",
+        ):
+            value = company.get(key)
+            if value:
+                candidates.append(str(value))
+
+        aliases = company.get("aliases") or []
+        if isinstance(aliases, list):
+            candidates.extend([str(x) for x in aliases if x])
+
+        return list(dict.fromkeys(candidates))
+
     def expand_company_filters(self, filters: list[str] | None) -> list[str] | None:
         if not filters:
             return None
@@ -40,17 +74,11 @@ class UniverseManager:
             matched = False
 
             for company in self.companies():
-                candidates = [
-                    company.get("ticker"),
-                    company.get("canonical_name"),
-                    company.get("short_name"),
-                    *(company.get("aliases") or []),
-                ]
-
-                candidates_norm = [normalize_company_text(x) for x in candidates if x]
+                candidates = self.company_candidates(company)
+                candidates_norm = [normalize_company_text(x) for x in candidates]
 
                 if query_norm in candidates_norm:
-                    expanded.extend([x for x in candidates if x])
+                    expanded.extend(candidates)
                     matched = True
                     break
 
@@ -63,14 +91,43 @@ class UniverseManager:
         value_norm = normalize_company_text(value)
 
         for company in self.companies():
-            candidates = [
-                company.get("ticker"),
-                company.get("canonical_name"),
-                company.get("short_name"),
-                *(company.get("aliases") or []),
-            ]
+            candidates = self.company_candidates(company)
+            candidates_norm = [normalize_company_text(x) for x in candidates]
 
-            if value_norm in [normalize_company_text(x) for x in candidates if x]:
+            if value_norm in candidates_norm:
                 return company
 
         return None
+
+    def get_company_by_page_url(self, page_url: str) -> dict | None:
+        page_url_norm = normalize_company_text(page_url)
+
+        for company in self.companies():
+            slug = company.get("brvm_report_slug")
+            company_page = company.get("brvm_company_page")
+
+            candidates = []
+
+            if slug:
+                candidates.append(slug)
+
+            if company_page:
+                candidates.append(company_page)
+
+            for candidate in candidates:
+                candidate_norm = normalize_company_text(candidate)
+
+                if candidate_norm and candidate_norm in page_url_norm:
+                    return company
+
+        return None
+
+    def get_display_name(self, company: dict | None) -> str | None:
+        if not company:
+            return None
+
+        return (
+            company.get("short_name")
+            or company.get("canonical_name")
+            or company.get("ticker")
+        )

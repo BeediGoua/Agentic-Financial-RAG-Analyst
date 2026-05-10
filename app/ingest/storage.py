@@ -1,22 +1,29 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
 from pathlib import Path
-from urllib.parse import urlparse
 
 import requests
 import urllib3
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 from app.ingest.schemas import ReportDocument
 from app.ingest.utils import slugify
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 class StorageAgent:
-    """Downloads PDFs, stores them locally and writes metadata/log files."""
+    """
+    Agent déterministe.
+    Rôle :
+    - télécharger les PDF ;
+    - organiser le stockage RAW ;
+    - sauvegarder les manifests ;
+    - sauvegarder les logs.
+    """
 
     def __init__(self, root_dir: str = "data/raw/reports"):
         self.root_dir = Path(root_dir)
@@ -34,20 +41,13 @@ class StorageAgent:
         source = slugify(report.source or "unknown_source")
         company = slugify(report.company or "unknown_company")
         year = report.year or "unknown_year"
-        document_type = report.document_type or "other"
+        document_type = report.document_type or "other_report"
 
-        # Générer un nom significatif (ex: orange_ci_2024_annual_report.pdf)
-        base_name = f"{company}_{year}_{document_type}"
-        
-        # Nettoyer le nom de base
-        base_name = re.sub(r'[<>:"/\\|?*\s]', '_', base_name)
-        
-        # On garde une trace de l'URL originale via un petit hash pour éviter les collisions
-        # au cas où on télécharge 2 documents du même type la même année
-        import hashlib
-        short_hash = hashlib.md5(report.pdf_url.encode()).hexdigest()[:6]
-        
-        filename = f"{base_name}_{short_hash}.pdf"
+        short_hash = hashlib.md5(report.pdf_url.encode("utf-8")).hexdigest()[:8]
+        base_name = f"{company}_{year}_{document_type}_{short_hash}"
+        base_name = re.sub(r'[<>:"/\\|?*\s]+', "_", base_name)
+
+        filename = f"{base_name}.pdf"
 
         output_dir = self.root_dir / source / company / year / document_type
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -60,8 +60,14 @@ class StorageAgent:
         if output_path.exists() and output_path.stat().st_size > 0:
             return output_path
 
-        response = self.session.get(report.pdf_url, timeout=60)  # Réduit de 90 à 60
+        response = self.session.get(report.pdf_url, timeout=60)
         response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "").lower()
+
+        if "pdf" not in content_type and not report.pdf_url.lower().endswith(".pdf"):
+            raise RuntimeError(f"Réponse non PDF probable: {content_type}")
+
         output_path.write_bytes(response.content)
 
         return output_path
@@ -84,6 +90,7 @@ class StorageAgent:
         }
 
         manifest_path = local_path.with_suffix(".manifest.json")
+
         manifest_path.write_text(
             json.dumps(metadata, indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -98,8 +105,10 @@ class StorageAgent:
             try:
                 data = json.loads(manifest.read_text(encoding="utf-8"))
                 checksum = data.get("checksum_sha256")
+
                 if checksum:
                     checksums.add(checksum)
+
             except Exception:
                 continue
 
