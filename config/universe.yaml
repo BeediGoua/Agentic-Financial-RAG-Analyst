@@ -2,35 +2,45 @@ companies:
   - ticker: SNTS
     canonical_name: SONATEL SENEGAL
     short_name: SONATEL
+    brvm_report_slug: sonatel
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/sonatel
     country: SENEGAL
     sector: TELECOM
     aliases:
+      - SNTS
       - SONATEL
-      - SONATEL SENEGAL
       - SONATEL SN
-      - SOCIETE NATIONALE DES TELECOMMUNICATIONS DU SENEGAL
+      - SONATEL SENEGAL
       - SONATEL SA
+      - SOCIETE NATIONALE DES TELECOMMUNICATIONS DU SENEGAL
 
   - ticker: ORAC
     canonical_name: ORANGE COTE D'IVOIRE
     short_name: ORANGE CI
+    brvm_report_slug: orange-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/orange-ci
     country: COTE DIVOIRE
     sector: TELECOM
     aliases:
+      - ORAC
+      - ORANGE
       - ORANGE CI
       - ORANGE COTE D'IVOIRE
       - ORANGE CÔTE D'IVOIRE
       - ORANGE COTE DIVOIRE
-      - ORANGE CI SA
+      - GROUPE ORANGE CI
 
   - ticker: CIEC
-    canonical_name: COMPAGNIE IVOIRIENNE D'ELECTRICITE
+    canonical_name: CIE COTE D'IVOIRE
     short_name: CIE CI
-    country: COTE D'IVOIRE
+    brvm_report_slug: cie-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/cie-ci
+    country: COTE DIVOIRE
     sector: UTILITIES
     aliases:
-      - CIE CI
+      - CIEC
       - CIE
+      - CIE CI
       - CIE COTE D'IVOIRE
       - CIE CÔTE D'IVOIRE
       - COMPAGNIE IVOIRIENNE D'ELECTRICITE
@@ -39,9 +49,12 @@ companies:
   - ticker: ECOC
     canonical_name: ECOBANK COTE D'IVOIRE
     short_name: ECOBANK CI
-    country: COTE D'IVOIRE
+    brvm_report_slug: ecobank-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/ecobank-ci
+    country: COTE DIVOIRE
     sector: BANKING
     aliases:
+      - ECOC
       - ECOBANK
       - ECOBANK CI
       - ECOBANK COTE D'IVOIRE
@@ -51,9 +64,12 @@ companies:
   - ticker: BOAC
     canonical_name: BANK OF AFRICA COTE D'IVOIRE
     short_name: BOA CI
-    country: COTE D'IVOIRE
+    brvm_report_slug: boa-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/boa-ci
+    country: COTE DIVOIRE
     sector: BANKING
     aliases:
+      - BOAC
       - BOA
       - BOA CI
       - BANK OF AFRICA
@@ -63,10 +79,14 @@ companies:
 
   - ticker: PALC
     canonical_name: PALM COTE D'IVOIRE
-    short_name: PALMCI
-    country: COTE D'IVOIRE
+    short_name: PALM CI
+    brvm_report_slug: palm-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/palm-ci
+    country: COTE DIVOIRE
     sector: AGRIBUSINESS
     aliases:
+      - PALC
+      - PALM
       - PALM CI
       - PALMCI
       - PALM COTE D'IVOIRE
@@ -75,9 +95,12 @@ companies:
   - ticker: NTLC
     canonical_name: NESTLE COTE D'IVOIRE
     short_name: NESTLE CI
-    country: COTE D'IVOIRE
+    brvm_report_slug: nestle-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/nestle-ci
+    country: COTE DIVOIRE
     sector: CONSUMER_GOODS
     aliases:
+      - NTLC
       - NESTLE
       - NESTLE CI
       - NESTLE COTE D'IVOIRE
@@ -87,9 +110,12 @@ companies:
   - ticker: SIBC
     canonical_name: SOCIETE IVOIRIENNE DE BANQUE
     short_name: SIB CI
-    country: COTE D'IVOIRE
+    brvm_report_slug: sib-ci
+    brvm_company_page: https://www.brvm.org/fr/rapports-societe-cotes/sib-ci
+    country: COTE DIVOIRE
     sector: BANKING
     aliases:
+      - SIBC
       - SIB
       - SIB CI
       - SOCIETE IVOIRIENNE DE BANQUE

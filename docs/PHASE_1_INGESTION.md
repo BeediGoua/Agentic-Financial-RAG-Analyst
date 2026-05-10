@@ -88,3 +88,12 @@ Une fois les scripts terminés, votre dossier `data/` sera organisé de manière
 3. **`data/bronze/`** : Les fichiers CSV macro-économiques nettoyés (`macro_rates.csv`, `macro_cpi.csv`).
 4. **`data/manifests/`** (et `reports/`) : Les fameux fichiers `*.manifest.json`. Ils contiennent les empreintes SHA-256 qui bloquent les doublons, certifient la source et l'heure du téléchargement.
 5. **`data/logs/`** : Les rapports de santé (Health Monitor JSON) qui détaillent le taux de succès (success rate) de chaque exécution de pipeline.
+
+
+Test 2 — vérifier
+utils.py
+python -c "from app.ingest.utils import parse_year_filter, parse_csv_filter, sha256_file; print('OK utils')"
+Test 3 — tester BRVMSourceAgent sans télécharger
+python -m app.ingest.brvm_source
+Test 4 — lancer seulement BRVM
+python -m app.ingest.run_all --only-brvm --companies "ORAC" --years "2025" --limit 3 --max-pages 2 --verbose
