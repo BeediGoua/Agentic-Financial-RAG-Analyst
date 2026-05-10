@@ -1,8 +1,12 @@
-from pydantic import BaseModel
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
 
 
 class ReportDocument(BaseModel):
-    source: str
+    """Metadata describing one financial report discovered online."""
+
+    source: str = Field(default="BRVM")
     title: str
     page_url: str
     pdf_url: str

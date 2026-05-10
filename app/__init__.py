@@ -1,1 +1,0 @@
-# Agentic Financial RAG Analyst
