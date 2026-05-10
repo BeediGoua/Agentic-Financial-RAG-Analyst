@@ -1,21 +1,57 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-.env
+# Virtual env
 .venv/
 venv/
+env/
 
-data/ 
-data/extracted/
-data/chunks/
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Data pipeline outputs
 data/raw/
-data/metadata/
-data/logs/
 data/extracted/
 data/processed/
-docs/
+data/chunks/
+data/embeddings/
+data/vector_db/
+data/logs/
+data/evaluation/generated/
 
+# PDF / datasets
 *.pdf
-*.manifest.json
+*.parquet
+*.faiss
+*.npy
+*.npz
+*.bin
 
-.DS_Store
+# Chroma / Qdrant
+chroma/
+qdrant_storage/
+
+# HF cache
+.cache/
+hf_cache/
+models/
+
+# Environment
+.env
+
+# VSCode
+.vscode/
+
+# pytest
+.pytest_cache/

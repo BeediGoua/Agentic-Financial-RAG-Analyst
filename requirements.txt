@@ -16,3 +16,6 @@ pytesseract
 pillow 
 opencv-python
 numpy 
+
+#phase 5
+sentence-transformers
