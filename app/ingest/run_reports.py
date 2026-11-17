@@ -56,6 +56,11 @@ def main() -> None:
         default="data/raw/reports",
         help="Root directory for downloaded reports.",
     )
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Treat an empty report discovery as successful; ingestion errors still fail.",
+    )
 
     args = parser.parse_args()
 
@@ -96,6 +101,22 @@ def main() -> None:
 
     print("\nDétail JSON")
     print(json.dumps({k: v for k, v in summary.items() if k != "results"}, indent=2, ensure_ascii=False))
+
+    has_errors = bool(summary.get("errors", 0) or summary.get("invalid_pdfs", 0))
+    empty_discovery_allowed = (
+        summary.get("discovered_reports", 0) == 0
+        and args.allow_empty
+        and not has_errors
+    )
+    if has_errors:
+        raise SystemExit(1)
+    if summary.get("discovered_reports", 0) == 0 and not empty_discovery_allowed:
+        raise SystemExit(1)
+    if (
+        summary.get("overall_status") in {"CRITICAL", "UNHEALTHY", "FAIL"}
+        and not empty_discovery_allowed
+    ):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

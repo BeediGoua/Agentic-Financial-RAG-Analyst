@@ -26,6 +26,7 @@ class SupervisorAgent:
             print("🔍 Découverte des rapports...")
         reports = self.source_agent.discover_reports()
         discovered_count = len(reports)
+        discovery_errors = getattr(self.source_agent, "discovery_errors", [])
 
         if limit is not None:
             reports = reports[:limit]
@@ -34,7 +35,10 @@ class SupervisorAgent:
             print(f"📊 {discovered_count} rapports découverts, traitement de {len(reports)}")
 
         existing_checksums = self.storage_agent.load_existing_checksums()
-        results: list[dict] = []
+        results: list[dict] = [
+            {"status": "error", "stage": "discovery", "error": error}
+            for error in discovery_errors
+        ]
         from tqdm import tqdm
 
         for i, report in enumerate(tqdm(reports, desc="Téléchargement & Validation", unit="pdf")):
@@ -60,11 +64,18 @@ class SupervisorAgent:
                 file_metadata = self.quality_agent.get_file_metadata(local_path)
 
                 if self.quality_agent.is_duplicate(checksum, existing_checksums):
+                    manifest_path = self.storage_agent.save_metadata(
+                        report=report,
+                        local_path=local_path,
+                        checksum=checksum,
+                        status="duplicate",
+                    )
                     results.append({
                         "status": "duplicate",
                         "title": report.title,
                         "pdf_url": report.pdf_url,
                         "local_path": str(local_path),
+                        "manifest_path": str(manifest_path),
                         "checksum_sha256": checksum,
                         "reason": "duplicate_by_checksum",
                     })
@@ -110,7 +121,9 @@ class SupervisorAgent:
 
         summary = {
             "discovered_reports": discovered_count,
-            "processed_reports": len(results),
+            "processed_reports": sum(
+                1 for result in results if result.get("pdf_url") is not None
+            ),
             "success": sum(1 for r in results if r["status"] == "success"),
             "duplicates": sum(1 for r in results if r["status"] == "duplicate"),
             "invalid_pdfs": sum(1 for r in results if r["status"] == "invalid_pdf"),

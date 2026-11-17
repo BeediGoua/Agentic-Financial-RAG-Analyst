@@ -4,6 +4,7 @@ import json
 import time
 from pathlib import Path
 
+from app.core.atomic import atomic_text_writer
 from app.extraction.extraction_quality_agent import ExtractionQualityAgent
 from app.extraction.pdf_text_agent import PDFTextExtractionAgent
 from app.extraction.table_extraction_agent import TableExtractionAgent
@@ -32,10 +33,8 @@ class ExtractionSupervisorAgent:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         output_path = self.quality_dir / f"extraction_run_{timestamp}.json"
 
-        output_path.write_text(
-            json.dumps(report, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with atomic_text_writer(output_path) as output:
+            json.dump(report, output, indent=2, ensure_ascii=False)
 
         return output_path
 
@@ -60,13 +59,11 @@ class ExtractionSupervisorAgent:
         text_quality = self.quality_agent.evaluate_text_results(text_results)
         table_quality = self.quality_agent.evaluate_table_results(table_results)
 
-        overall_status = "HEALTHY"
-
-        if text_quality["status"] == "UNHEALTHY":
-            overall_status = "UNHEALTHY"
-
-        elif text_quality["status"] == "DEGRADED" or table_quality["status"] == "DEGRADED":
-            overall_status = "DEGRADED"
+        severity = {"HEALTHY": 0, "DEGRADED": 1, "UNHEALTHY": 2}
+        overall_status = max(
+            (text_quality["status"], table_quality["status"]),
+            key=lambda status: severity.get(status, 2),
+        )
 
         report = {
             "overall_status": overall_status,

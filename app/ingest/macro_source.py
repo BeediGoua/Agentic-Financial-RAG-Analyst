@@ -10,6 +10,7 @@ from pathlib import Path
 import os
 import sys
 
+from app.core.atomic import atomic_text_writer
 from app.core.manifests import create_manifest, write_manifest
 
 def parse_eden_csv_fake_xls(file_path: str, value_column: str) -> pd.DataFrame:
@@ -32,7 +33,12 @@ def parse_eden_csv_fake_xls(file_path: str, value_column: str) -> pd.DataFrame:
         melted_df = df.melt(id_vars=available_id_cols, var_name="Date_Raw", value_name=value_column)
         
         # Nettoyage optionnel des lignes vides (EDEN remplit de '-' les trous)
-        melted_df = melted_df[melted_df[value_column] != "-"]
+        values = melted_df[value_column].astype("string").str.strip()
+        melted_df = melted_df[
+            melted_df[value_column].notna() & values.ne("") & values.ne("-")
+        ]
+        if melted_df.empty:
+            raise ValueError(f"No usable observations in EDEN file {file_path}")
         
         return melted_df
     except Exception as e:
@@ -45,29 +51,36 @@ def run_macro_ingestion():
     raw_rates_path = base_dir / "data" / "raw" / "eden_rates.xls"
     raw_cpi_path = base_dir / "data" / "raw" / "eden_cpi_monthly_uemoa.xls"
     
+    missing = [
+        str(path)
+        for path in (raw_rates_path, raw_cpi_path)
+        if not path.is_file()
+    ]
+    if missing:
+        raise FileNotFoundError(f"Required EDEN macro inputs missing: {missing}")
     bronze_dir = base_dir / "data" / "bronze"
     bronze_dir.mkdir(parents=True, exist_ok=True)
     manifests_dir = base_dir / "data" / "manifests"
     
     # Tenter l'ingestion stricte
     try:
-        if raw_rates_path.exists():
-            df_rates = parse_eden_csv_fake_xls(str(raw_rates_path), "taux_directeur")
-            out_rates = bronze_dir / "macro_rates.csv"
-            df_rates.to_csv(out_rates, index=False)
+        df_rates = parse_eden_csv_fake_xls(str(raw_rates_path), "taux_directeur")
+        out_rates = bronze_dir / "macro_rates.csv"
+        with atomic_text_writer(out_rates) as output:
+            df_rates.to_csv(output, index=False)
             
-            manifest_rates = create_manifest(str(out_rates), str(raw_rates_path), "EDEN_BCEAO", {"type": "rates"})
-            write_manifest(manifest_rates, str(manifests_dir))
-            logging.info(" Macro Rates ingérés avec succès.")
+        manifest_rates = create_manifest(str(out_rates), str(raw_rates_path), "EDEN_BCEAO", {"type": "rates"})
+        write_manifest(manifest_rates, str(manifests_dir))
+        logging.info(" Macro Rates ingérés avec succès.")
             
-        if raw_cpi_path.exists():
-            df_cpi = parse_eden_csv_fake_xls(str(raw_cpi_path), "inflation")
-            out_cpi = bronze_dir / "macro_cpi.csv"
-            df_cpi.to_csv(out_cpi, index=False)
+        df_cpi = parse_eden_csv_fake_xls(str(raw_cpi_path), "inflation")
+        out_cpi = bronze_dir / "macro_cpi.csv"
+        with atomic_text_writer(out_cpi) as output:
+            df_cpi.to_csv(output, index=False)
             
-            manifest_cpi = create_manifest(str(out_cpi), str(raw_cpi_path), "EDEN_BCEAO", {"type": "cpi"})
-            write_manifest(manifest_cpi, str(manifests_dir))
-            logging.info(" Macro CPI ingérée avec succès.")
+        manifest_cpi = create_manifest(str(out_cpi), str(raw_cpi_path), "EDEN_BCEAO", {"type": "cpi"})
+        write_manifest(manifest_cpi, str(manifests_dir))
+        logging.info(" Macro CPI ingérée avec succès.")
             
     except Exception as e:
         # Exception levée volontairement pour crash le pipeline et empêcher les "Default Values"

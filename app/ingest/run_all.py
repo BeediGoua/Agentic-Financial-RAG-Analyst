@@ -46,22 +46,25 @@ def main() -> None:
     args, unknown_args = parser.parse_known_args()
 
     run_everything = not (args.only_brvm or args.only_sika or args.only_macro)
+    failures: list[tuple[str, str]] = []
 
     if run_everything or args.only_macro:
         logging.info("Lancement ingestion MACRO")
 
         try:
             run_macro()
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             logging.exception(f"Échec ingestion MACRO: {e}")
+            failures.append(("macro", str(e)))
 
     if run_everything or args.only_sika:
         logging.info("Lancement ingestion SIKA")
 
         try:
             run_sika(probe=args.probe, force=False)
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             logging.exception(f"Échec ingestion SIKA: {e}")
+            failures.append(("sika", str(e)))
 
     if run_everything or args.only_brvm:
         logging.info("Lancement ingestion BRVM PDFs")
@@ -72,13 +75,17 @@ def main() -> None:
             sys.argv = ["run_reports"] + unknown_args
             run_brvm_reports()
 
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             logging.exception(f"Échec ingestion BRVM PDFs: {e}")
+            failures.append(("brvm", str(e)))
 
         finally:
             sys.argv = original_argv
 
     logging.info("Fin orchestration ingestion")
+    if failures:
+        logging.error("Échecs ingestion (%d): %s", len(failures), failures)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

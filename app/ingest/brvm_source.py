@@ -5,15 +5,12 @@ import time
 from urllib.parse import urljoin
 
 import requests
-import urllib3
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from app.core.universe import UniverseManager
 from app.ingest.schemas import ReportDocument
 from app.ingest.utils import normalize_text, parse_csv_filter, parse_year_filter
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 BRVM_LISTING_PAGES = [
@@ -61,10 +58,10 @@ class BRVMSourceAgent:
         self.years = parse_year_filter(years)
         self.max_pages = max_pages
         self.sleep_seconds = sleep_seconds
+        self.discovery_errors: list[str] = []
 
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
-        self.session.verify = False
 
     def get_html(self, url: str) -> str:
         response = self.session.get(url, timeout=30)
@@ -278,6 +275,9 @@ class BRVMSourceAgent:
                         document_pages = self.find_document_pages(html, listing_url)
 
                     except Exception as e:
+                        self.discovery_errors.append(
+                            f"Listing {listing_url}: {type(e).__name__}: {e}"
+                        )
                         tqdm.write(f"[WARN] Listing impossible: {listing_url} | {e}")
                         pbar.update(1)
                         continue
@@ -301,6 +301,9 @@ class BRVMSourceAgent:
                             time.sleep(self.sleep_seconds)
 
                         except Exception as e:
+                            self.discovery_errors.append(
+                                f"Document page {document_page}: {type(e).__name__}: {e}"
+                            )
                             tqdm.write(
                                 f"[WARN] Page document impossible: {document_page} | {e}"
                             )
@@ -361,11 +364,17 @@ class BRVMSourceAgent:
                             time.sleep(self.sleep_seconds)
 
                         except Exception as e:
+                            self.discovery_errors.append(
+                                f"Company document page {document_page}: {type(e).__name__}: {e}"
+                            )
                             tqdm.write(
                                 f"[WARN] Page document société impossible: {document_page} | {e}"
                             )
 
                 except Exception as e:
+                    self.discovery_errors.append(
+                        f"Company page {company_page}: {type(e).__name__}: {e}"
+                    )
                     tqdm.write(f"[WARN] Page société impossible: {company_page} | {e}")
 
                 time.sleep(self.sleep_seconds)
@@ -374,6 +383,7 @@ class BRVMSourceAgent:
         return reports
 
     def discover_reports(self) -> list[ReportDocument]:
+        self.discovery_errors = []
         reports: list[ReportDocument] = []
 
         reports.extend(self.discover_from_listing_pages())

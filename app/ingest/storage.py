@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import os
 import re
+import tempfile
 import time
 from pathlib import Path
 
 import requests
-import urllib3
 
+from app.core.atomic import atomic_text_writer
 from app.ingest.schemas import ReportDocument
+from app.ingest.quality import QualityAgent
 from app.ingest.utils import slugify
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class StorageAgent:
@@ -35,7 +37,6 @@ class StorageAgent:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
         self.session = requests.Session()
-        self.session.verify = False
 
     def build_path(self, report: ReportDocument) -> Path:
         source = slugify(report.source or "unknown_source")
@@ -56,21 +57,55 @@ class StorageAgent:
 
     def download(self, report: ReportDocument) -> Path:
         output_path = self.build_path(report)
+        quality_agent = QualityAgent()
 
-        if output_path.exists() and output_path.stat().st_size > 0:
+        if output_path.exists():
+            valid, _, _ = quality_agent.validate_pdf(output_path)
+            if valid:
+                return output_path
+            output_path.unlink()
+            output_path.with_suffix(".manifest.json").unlink(missing_ok=True)
+
+        temporary_path: Path | None = None
+        try:
+            with self.session.get(
+                report.pdf_url,
+                timeout=(10, 60),
+                stream=True,
+            ) as response:
+                response.raise_for_status()
+
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > quality_agent.max_pdf_size:
+                    raise ValueError("Downloaded file exceeds the maximum PDF size")
+
+                with tempfile.NamedTemporaryFile(
+                    mode="wb",
+                    dir=output_path.parent,
+                    prefix=f".{output_path.name}.",
+                    suffix=".part",
+                    delete=False,
+                ) as temporary_file:
+                    temporary_path = Path(temporary_file.name)
+                    total_size = 0
+                    for chunk in response.iter_content(chunk_size=65_536):
+                        if not chunk:
+                            continue
+                        total_size += len(chunk)
+                        if total_size > quality_agent.max_pdf_size:
+                            raise ValueError("Downloaded file exceeds the maximum PDF size")
+                        temporary_file.write(chunk)
+
+            valid, reason, _ = quality_agent.validate_pdf(temporary_path)
+            if not valid:
+                raise ValueError(f"Downloaded file is not a valid PDF: {reason}")
+
+            os.replace(temporary_path, output_path)
+            temporary_path = None
             return output_path
-
-        response = self.session.get(report.pdf_url, timeout=60)
-        response.raise_for_status()
-
-        content_type = response.headers.get("Content-Type", "").lower()
-
-        if "pdf" not in content_type and not report.pdf_url.lower().endswith(".pdf"):
-            raise RuntimeError(f"Réponse non PDF probable: {content_type}")
-
-        output_path.write_bytes(response.content)
-
-        return output_path
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     def save_metadata(
         self,
@@ -80,6 +115,13 @@ class StorageAgent:
         status: str,
     ) -> Path:
         local_path = Path(local_path)
+        quality_agent = QualityAgent()
+        valid, reason, _ = quality_agent.validate_pdf(local_path)
+        if not valid:
+            raise ValueError(f"Refusing success manifest for invalid PDF: {reason}")
+        actual_checksum = quality_agent.file_hash(local_path)
+        if checksum != actual_checksum:
+            raise ValueError("Refusing success manifest with a mismatched PDF checksum")
 
         metadata = {
             **report.model_dump(),
@@ -90,27 +132,44 @@ class StorageAgent:
         }
 
         manifest_path = local_path.with_suffix(".manifest.json")
-
-        manifest_path.write_text(
-            json.dumps(metadata, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with atomic_text_writer(manifest_path) as output:
+            json.dump(metadata, output, indent=2, ensure_ascii=False)
 
         return manifest_path
 
     def load_existing_checksums(self) -> set[str]:
         checksums: set[str] = set()
+        quality_agent = QualityAgent()
+        logger = logging.getLogger(__name__)
+        root = self.root_dir.resolve()
 
         for manifest in self.root_dir.rglob("*.manifest.json"):
             try:
                 data = json.loads(manifest.read_text(encoding="utf-8"))
+                if data.get("status") != "success":
+                    continue
+                local_path = Path(data["local_path"])
+                if not local_path.resolve().is_relative_to(root):
+                    logger.warning(
+                        "Ignoring manifest outside RAW storage: %s", manifest
+                    )
+                    continue
                 checksum = data.get("checksum_sha256")
-
-                if checksum:
-                    checksums.add(checksum)
-
-            except Exception:
-                continue
+                valid, reason, _ = quality_agent.validate_pdf(local_path)
+                if (
+                    not valid
+                    or not checksum
+                    or quality_agent.file_hash(local_path) != checksum
+                ):
+                    logger.warning(
+                        "Ignoring inconsistent success manifest %s (%s)",
+                        manifest,
+                        reason if not valid else "checksum mismatch",
+                    )
+                    continue
+                checksums.add(checksum)
+            except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                logger.warning("Ignoring unreadable manifest %s: %s", manifest, exc)
 
         return checksums
 
@@ -118,9 +177,7 @@ class StorageAgent:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         log_path = self.logs_dir / f"ingestion_run_{timestamp}.json"
 
-        log_path.write_text(
-            json.dumps(results, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with atomic_text_writer(log_path) as output:
+            json.dump(results, output, indent=2, ensure_ascii=False)
 
         return log_path

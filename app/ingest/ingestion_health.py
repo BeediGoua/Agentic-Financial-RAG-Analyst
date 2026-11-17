@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from app.core.atomic import atomic_text_writer
+
 
 class IngestionHealthMonitor:
     """Monitor health metrics of PDF report ingestions."""
@@ -26,10 +28,20 @@ class IngestionHealthMonitor:
             "alerts": [],
             "metrics": {
                 "total_processed": len(results),
-                "successful": sum(1 for r in results if r["status"] == "success"),
-                "duplicates_detected": sum(1 for r in results if r["status"] == "duplicate"),
-                "invalid_pdfs": sum(1 for r in results if r["status"] == "invalid_pdf"),
-                "errors": sum(1 for r in results if r["status"] == "error"),
+                "successful": sum(1 for r in results if r.get("status") == "success"),
+                "duplicates_detected": sum(
+                    1 for r in results if r.get("status") == "duplicate"
+                ),
+                "invalid_pdfs": sum(
+                    1 for r in results if r.get("status") == "invalid_pdf"
+                ),
+                "errors": sum(
+                    1
+                    for r in results
+                    if r.get("status")
+                    not in {"success", "duplicate", "invalid_pdf", "error"}
+                    or r.get("status") == "error"
+                ),
             },
             "validation_summary": {},
             "detailed_results": results
@@ -37,16 +49,35 @@ class IngestionHealthMonitor:
 
         # Success rate
         total = health_report["metrics"]["total_processed"]
+        successful = health_report["metrics"]["successful"]
+        duplicates = health_report["metrics"]["duplicates_detected"]
+        errors = health_report["metrics"]["errors"]
+        invalid_pdfs = health_report["metrics"]["invalid_pdfs"]
         if total > 0:
-            success_rate = health_report["metrics"]["successful"] / total
-            health_report["metrics"]["success_rate"] = round(success_rate, 4)
+            health_report["metrics"]["success_rate"] = round(successful / total, 4)
+            health_report["metrics"]["available_rate"] = round(
+                (successful + duplicates) / total, 4
+            )
 
+        else:
+            health_report["metrics"]["success_rate"] = 0.0
+            health_report["metrics"]["available_rate"] = 0.0
+            health_report["alerts"].append("CRITICAL: No reports were processed")
+
+        if errors or invalid_pdfs:
+            health_report["alerts"].append(
+                f"CRITICAL: {errors} errors and {invalid_pdfs} invalid PDFs"
+            )
+        elif successful:
+            success_rate = health_report["metrics"]["success_rate"]
             if success_rate < 0.5:
                 health_report["alerts"].append("CRITICAL: Success rate below 50%")
             elif success_rate < 0.8:
                 health_report["alerts"].append("WARNING: Success rate below 80%")
-        else:
-            health_report["metrics"]["success_rate"] = 0.0
+        elif duplicates:
+            health_report["alerts"].append(
+                "WARNING: Reports were already validated; no new reports were ingested"
+            )
 
         # Validation checks analysis
         validation_statuses = {}
@@ -77,8 +108,8 @@ class IngestionHealthMonitor:
         log_path = Path(log_path)
         health_path = log_path.with_suffix(".health.json")
 
-        with open(health_path, "w", encoding="utf-8") as f:
-            json.dump(health_report, f, indent=2, ensure_ascii=False)
+        with atomic_text_writer(health_path) as output:
+            json.dump(health_report, output, indent=2, ensure_ascii=False)
 
         self.logger.info(f"Health report saved: {health_path}")
         return health_path

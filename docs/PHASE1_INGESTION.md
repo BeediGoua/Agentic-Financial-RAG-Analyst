@@ -89,6 +89,16 @@ Une fois les scripts terminés, votre dossier `data/` sera organisé de manière
 4. **`data/manifests/`** (et `reports/`) : Les fameux fichiers `*.manifest.json`. Ils contiennent les empreintes SHA-256 qui bloquent les doublons, certifient la source et l'heure du téléchargement.
 5. **`data/logs/`** : Les rapports de santé (Health Monitor JSON) qui détaillent le taux de succès (success rate) de chaque exécution de pipeline.
 
+## TLS et découverte vide
+
+Les connexions HTTPS vérifient les certificats par défaut. Si l'environnement
+utilise une autorité de certification interne, configurez `REQUESTS_CA_BUNDLE`
+vers le fichier PEM de cette autorité avant de lancer l'ingestion. Ne désactivez
+pas la validation TLS et ne masquez pas les avertissements de certificat.
+
+Une découverte sans rapport fait échouer `run_reports` par défaut. Pour une
+recherche volontairement vide, passez explicitement `--allow-empty` ; cette
+option ne masque ni erreurs de téléchargement ni PDF invalides.
 
 Test 2 — vérifier
 utils.py

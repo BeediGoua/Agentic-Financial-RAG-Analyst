@@ -8,6 +8,7 @@ import fitz
 import pytesseract
 from PIL import Image
 
+from app.core.atomic import atomic_text_writer
 from app.extraction.schemas import ExtractedPage
 
 
@@ -44,8 +45,8 @@ class PDFTextExtractionAgent:
 
         try:
             return json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Invalid PDF manifest {manifest_path}: {exc}") from exc
 
     def build_output_path(self, pdf_path: Path) -> Path:
         relative = pdf_path.relative_to(self.raw_dir)
@@ -95,41 +96,80 @@ class PDFTextExtractionAgent:
         output_path = self.build_output_path(pdf_path)
 
         if output_path.exists() and not force:
-            return {
-                "status": "already_exists",
-                "source_pdf": str(pdf_path),
-                "pages_output": str(output_path),
-            }
+            try:
+                if output_path.stat().st_mtime >= pdf_path.stat().st_mtime:
+                    with fitz.open(pdf_path) as cached_pdf:
+                        if (
+                            not cached_pdf.is_pdf
+                            or cached_pdf.needs_pass
+                            or cached_pdf.page_count < 1
+                        ):
+                            raise ValueError("Source PDF is encrypted or empty")
+                        expected_pages = cached_pdf.page_count
+                    rows = [
+                        json.loads(line)
+                        for line in output_path.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+                    if (
+                        len(rows) == expected_pages
+                        and all(isinstance(row, dict) for row in rows)
+                        and [int(row["page_number"]) for row in rows]
+                        == list(range(1, expected_pages + 1))
+                        and all(isinstance(row.get("text"), str) for row in rows)
+                    ):
+                        return {
+                            "status": "already_exists",
+                            "source_pdf": str(pdf_path),
+                            "pages_output": str(output_path),
+                            "pages_count": len(rows),
+                            "empty_pages": sum(
+                                int(row.get("word_count") or 0) == 0 for row in rows
+                            ),
+                            "ocr_pages": sum(bool(row.get("ocr_used")) for row in rows),
+                            "low_quality_pages": sum(
+                                row.get("quality_status")
+                                in {
+                                    "low_text_quality",
+                                    "low_text_quality_after_ocr",
+                                    "ocr_failed",
+                                }
+                                for row in rows
+                            ),
+                        }
+            except (OSError, ValueError, KeyError, TypeError, fitz.FileDataError):
+                pass
 
         manifest = self.load_manifest(pdf_path)
 
         try:
-            doc = fitz.open(pdf_path)
             pages: list[ExtractedPage] = []
+            with fitz.open(pdf_path) as doc:
+                if not doc.is_pdf or doc.needs_pass or doc.page_count < 1:
+                    raise ValueError("PDF is encrypted or contains no pages")
+                with atomic_text_writer(output_path) as output:
+                    for page_index in range(doc.page_count):
+                        page = doc[page_index]
+                        text, method, ocr_used, quality_status = self.extract_page_text(page)
 
-            with output_path.open("w", encoding="utf-8") as f:
-                for page_index in range(len(doc)):
-                    page = doc[page_index]
-                    text, method, ocr_used, quality_status = self.extract_page_text(page)
+                        extracted_page = ExtractedPage(
+                            source_pdf=str(pdf_path),
+                            source_url=manifest.get("source_url"),
+                            company=manifest.get("company"),
+                            year=str(manifest.get("year")) if manifest.get("year") else None,
+                            document_type=manifest.get("document_type"),
+                            language=manifest.get("language"),
+                            page_number=page_index + 1,
+                            text=text,
+                            char_count=len(text),
+                            word_count=len(text.split()),
+                            extraction_method=method,
+                            ocr_used=ocr_used,
+                            quality_status=quality_status,
+                        )
 
-                    extracted_page = ExtractedPage(
-                        source_pdf=str(pdf_path),
-                        source_url=manifest.get("source_url"),
-                        company=manifest.get("company"),
-                        year=str(manifest.get("year")) if manifest.get("year") else None,
-                        document_type=manifest.get("document_type"),
-                        language=manifest.get("language"),
-                        page_number=page_index + 1,
-                        text=text,
-                        char_count=len(text),
-                        word_count=len(text.split()),
-                        extraction_method=method,
-                        ocr_used=ocr_used,
-                        quality_status=quality_status,
-                    )
-
-                    pages.append(extracted_page)
-                    f.write(extracted_page.model_dump_json() + "\n")
+                        pages.append(extracted_page)
+                        output.write(extracted_page.model_dump_json() + "\n")
 
             return {
                 "status": "success",

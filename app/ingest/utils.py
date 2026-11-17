@@ -92,19 +92,31 @@ def parse_year_filter(value: str | list[str] | None) -> list[str] | None:
     if value is None:
         return None
 
-    value = value.strip()
+    if isinstance(value, list):
+        years = [str(year).strip() for year in value if str(year).strip()]
+        return years or None
+
+    value = str(value).strip()
+    if not value:
+        return None
 
     if "-" in value and "," not in value:
         start_str, end_str = value.split("-", 1)
+        if not (
+            start_str.strip().isdigit()
+            and end_str.strip().isdigit()
+            and len(start_str.strip()) == 4
+            and len(end_str.strip()) == 4
+        ):
+            raise ValueError(f"Invalid year range: {value}")
         start_year = int(start_str.strip())
         end_year = int(end_str.strip())
         if start_year > end_year:
             start_year, end_year = end_year, start_year
-            
-        years = [str(y) for y in range(start_year, end_year + 1)]
+        if end_year - start_year > 100:
+            raise ValueError("Year range is unexpectedly large")
+        years = [str(year) for year in range(start_year, end_year + 1)]
         return years
-
-    
 
     return [x.strip() for x in value.split(",") if x.strip()]
 
