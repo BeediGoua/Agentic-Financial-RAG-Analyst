@@ -39,6 +39,16 @@ def _report(url: str = "https://www.brvm.org/files/report.pdf") -> ReportDocumen
     )
 
 
+def _report_with_path_fields(
+    *,
+    year: str | None = "2025",
+    document_type: str | None = "annual_report",
+) -> ReportDocument:
+    return _report().model_copy(
+        update={"year": year, "document_type": document_type}
+    )
+
+
 class FakeResponse:
     def __init__(
         self,
@@ -604,6 +614,130 @@ def test_manifest_path_comparison_accepts_relative_and_absolute_forms(
     checksum = QualityAgent().file_hash(path)
     storage.save_metadata(report, path, checksum, "success")
     assert storage.has_valid_success_manifest(path.resolve(), checksum)
+
+
+def test_storage_path_preserves_valid_brvm_components(tmp_path, monkeypatch):
+    from app.ingest.storage import StorageAgent
+
+    monkeypatch.chdir(tmp_path)
+    storage = StorageAgent(root_dir=str(tmp_path / "raw"))
+    path = storage.build_path(_report_with_path_fields())
+    assert path.parent.parts[-4:] == (
+        "brvm",
+        "orange_ci",
+        "2025",
+        "annual_report",
+    )
+    assert path.parent.name == "annual_report"
+    assert path.parent.parent.name == "2025"
+    assert path.is_relative_to(tmp_path / "raw")
+
+
+@pytest.mark.parametrize(
+    ("year", "document_type", "expected_year", "expected_type"),
+    [
+        (None, "annual_report", "unknown_year", "annual_report"),
+        ("unknown_year", "annual_report", "unknown_year", "annual_report"),
+        ("2025", None, "2025", "other_report"),
+        (None, None, "unknown_year", "other_report"),
+    ],
+)
+def test_storage_path_uses_safe_defaults(
+    tmp_path, monkeypatch, year, document_type, expected_year, expected_type
+):
+    from app.ingest.storage import StorageAgent
+
+    monkeypatch.chdir(tmp_path)
+    storage = StorageAgent(root_dir=str(tmp_path / "raw"))
+    path = storage.build_path(
+        _report_with_path_fields(year=year, document_type=document_type)
+    )
+    assert path.parent.parent.name == expected_year
+    assert path.parent.name == expected_type
+    assert path.is_relative_to(tmp_path / "raw")
+
+
+@pytest.mark.parametrize(
+    "year",
+    [
+        "../../../../tmp",
+        "/tmp/escape",
+        r"..\..\..\tmp",
+        "2025/../../tmp",
+        "2025\\..\\tmp",
+        "20\x00 5",
+        "2025\n",
+    ],
+)
+def test_storage_rejects_unsafe_year_before_creating_report_directories(
+    tmp_path, monkeypatch, year
+):
+    from app.ingest.storage import StorageAgent
+
+    monkeypatch.chdir(tmp_path)
+    root = tmp_path / "raw"
+    storage = StorageAgent(root_dir=str(root))
+    with pytest.raises(ValueError, match="Invalid report year"):
+        storage.build_path(_report_with_path_fields(year=year))
+    assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "document_type",
+    [
+        "../../../private",
+        "..",
+        ".",
+        r"..\private",
+        "annual/report",
+        "annual\\report",
+        "annual_report\x00",
+        "annual_report\n",
+    ],
+)
+def test_storage_rejects_unsafe_document_type_before_creating_report_directories(
+    tmp_path, monkeypatch, document_type
+):
+    from app.ingest.storage import StorageAgent
+
+    monkeypatch.chdir(tmp_path)
+    root = tmp_path / "raw"
+    storage = StorageAgent(root_dir=str(root))
+    with pytest.raises(ValueError, match="Invalid report document type"):
+        storage.build_path(
+            _report_with_path_fields(document_type=document_type)
+        )
+    assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "symlink_parts",
+    [
+        ("brvm",),
+        ("brvm", "orange_ci"),
+        ("brvm", "orange_ci", "2025"),
+        ("brvm", "orange_ci", "2025", "annual_report"),
+    ],
+)
+def test_storage_rejects_existing_symlink_escape(
+    tmp_path, monkeypatch, symlink_parts
+):
+    from app.ingest.storage import StorageAgent
+
+    monkeypatch.chdir(tmp_path)
+    root = tmp_path / "raw"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    link_path = root.joinpath(*symlink_parts)
+    link_path.parent.mkdir(parents=True, exist_ok=True)
+    link_path.symlink_to(outside, target_is_directory=True)
+    storage = StorageAgent(root_dir=str(root))
+
+    with pytest.raises(ValueError, match="escapes its configured root"):
+        storage.build_path(_report_with_path_fields())
+
+    assert list(outside.iterdir()) == []
 
 
 def test_ingestion_health_distinguishes_success_duplicate_invalid_and_errors():
