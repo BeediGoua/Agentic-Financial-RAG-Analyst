@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from app.core.atomic import atomic_text_writer
 from app.ingest.utils import parse_csv_filter, parse_year_filter
 
 
@@ -222,10 +223,8 @@ class ExtractionAuditAgent:
         }
 
         output_path = self.audit_dir / "latest_extraction_audit.json"
-        output_path.write_text(
-            json.dumps(report, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with atomic_text_writer(output_path) as output:
+            json.dump(report, output, indent=2, ensure_ascii=False)
 
         report["audit_path"] = str(output_path)
 
@@ -287,6 +286,9 @@ def main() -> None:
         print("\nDécision : vérifier manuellement quelques exemples avant de continuer.")
     else:
         print("\nDécision : extraction suffisante pour passer à l'étape suivante.")
+
+    if report["overall_status"] == "FAIL":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

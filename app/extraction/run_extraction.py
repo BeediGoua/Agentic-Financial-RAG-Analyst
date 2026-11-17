@@ -64,7 +64,7 @@ def main() -> None:
         force=args.force,
     )
 
-    print("\n✅ Extraction terminée!")
+    print("\nExtraction terminée")
     print("=" * 60)
     print(f"État général       : {report['overall_status']}")
     print(f"Fichiers texte     : {report['text_quality']['success_files']}")
@@ -78,6 +78,8 @@ def main() -> None:
     print(f"Tables extraites   : {report['table_quality']['total_tables']}")
     print(f"Rapport qualité    : {report['quality_report_path']}")
     print("=" * 60)
+    if report["overall_status"] != "HEALTHY":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

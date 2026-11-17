@@ -4,26 +4,22 @@ Inclut un rate-limiting strict, une logique de retries, et génère systématiqu
 des certificats d'audit (Manifests) pour garantir la provenance des données.
 """
 import argparse
+import json
 import logging
-import os
+import re
 import time
 from datetime import datetime
-import pandas as pd
-import yaml
 from pathlib import Path
-import sys
 
+import pandas as pd
+import requests
+import yaml
+
+from app.core.atomic import atomic_text_writer
 from app.core.manifests import create_manifest, write_manifest
-from app.ingest.utils import extract_tickers_from_universe
+from app.ingest.utils import extract_tickers_from_universe, sha256_file
 
 # --- Copie/Adaptation du Client Richbourse depuis l'ancien projet ---
-import json
-import re
-import urllib3
-import requests
-from dateutil.parser import isoparse
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 RICHBOURSE_TECH_URL = "https://www.richbourse.com/common/mouvements/technique/{symbol}/status/200"
 
 def _to_date_utc_naive_from_ms(ts_ms: int):
@@ -75,7 +71,7 @@ def _pick_ohlc_and_volume(arrays):
 def fetch_history_raw(symbol: str, timeout_s: int = 15) -> pd.DataFrame:
     url = RICHBOURSE_TECH_URL.format(symbol=symbol.upper())
     headers = {"User-Agent": "brvm-intelligence/1.0", "Accept": "text/html,application/xhtml+xml"}
-    resp = requests.get(url, headers=headers, timeout=timeout_s, verify=False)
+    resp = requests.get(url, headers=headers, timeout=timeout_s)
     resp.raise_for_status()
     arrays = _extract_data_arrays_from_html(resp.text)
     ohlc_arr, vol_arr = _pick_ohlc_and_volume(arrays)
@@ -111,6 +107,38 @@ def load_config(path: str) -> dict:
     with open(path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
 
+
+def _is_valid_cache(csv_path: Path, manifest_path: Path) -> bool:
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            manifest.get("status") != "success"
+            or manifest.get("local_path") != str(csv_path)
+            or manifest.get("file_size_bytes") != csv_path.stat().st_size
+        ):
+            return False
+        if manifest.get("checksum_sha256") != sha256_file(csv_path):
+            return False
+        cached = pd.read_csv(csv_path)
+        return not cached.empty and {
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "symbol",
+        }.issubset(cached.columns)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        UnicodeError,
+        pd.errors.ParserError,
+    ):
+        return False
+
+
 def run_ingestion(probe: bool = False, force: bool = False):
     base_dir = Path(__file__).resolve().parent.parent.parent
     config_sources = load_config(base_dir / "config" / "sources.yaml")
@@ -124,30 +152,42 @@ def run_ingestion(probe: bool = False, force: bool = False):
     if probe:
         logging.info("PROBE MODE: Testing 1 ticker only.")
         tickers = tickers[:1]
+    if not tickers:
+        raise RuntimeError("No tickers configured for Sika ingestion")
 
     sleep_time = 1.0 / config_sources.get("sika", {}).get("rps", 1.0)
     from tqdm import tqdm
-    
+    failures: list[tuple[str, str]] = []
+
     for ticker in tqdm(tickers, desc="Fetching Sika Prices", unit="ticker"):
         output_file = out_dir / f"{ticker}_raw.csv"
         
         # --- Logic de Skip (Cache de 12h) ---
 
-        if not force and output_file.exists():
+        if not force and output_file.is_file() and output_file.stat().st_size > 0:
             mtime = datetime.fromtimestamp(output_file.stat().st_mtime)
             diff = datetime.now() - mtime
-            if diff.total_seconds() < 12 * 3600: # 12 heures
-                logging.info(f"⏩ Data for {ticker} is recent ({diff.total_seconds()/3600:.1f}h old). Skipping.")
-                continue
+            if diff.total_seconds() < 12 * 3600:
+                cached_manifest = manifests_dir / f"{output_file.name}.manifest.json"
+                if _is_valid_cache(output_file, cached_manifest):
+                    logging.info(
+                        "⏩ Data for %s is recent (%.1fh old). Skipping.",
+                        ticker,
+                        diff.total_seconds() / 3600,
+                    )
+                    continue
+                logging.warning("Ignoring invalid or unmanifested Sika cache for %s", ticker)
 
         logging.info(f"Fetching data for {ticker}...")
         try:
             time.sleep(sleep_time) # Polite rate limiting
             
             df = fetch_history_raw(ticker)
-            
-            # Sauvegarde en CSV brut
-            df.to_csv(output_file, index=False)
+            if df.empty:
+                raise ValueError(f"No historical rows received for {ticker}")
+
+            with atomic_text_writer(output_file) as output:
+                df.to_csv(output, index=False)
             logging.info(f" Saved {len(df)} rows to {output_file.name}")
             
             # === CREATION DU MANIFEST POUR L'AUDIT ===
@@ -161,6 +201,12 @@ def run_ingestion(probe: bool = False, force: bool = False):
             
         except Exception as e:
             logging.error(f" Failed fetching {ticker}: {e}")
+            failures.append((ticker, str(e)))
+
+    if failures:
+        raise RuntimeError(
+            f"Sika ingestion failed for {len(failures)} ticker(s): {failures}"
+        )
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

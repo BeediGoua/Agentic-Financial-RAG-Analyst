@@ -9,6 +9,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from app.core.atomic import atomic_text_writer
+
 
 class DataPipelineRunner:
     """
@@ -165,10 +167,8 @@ class DataPipelineRunner:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         output_path = self.reports_dir / f"pipeline_run_{timestamp}.json"
 
-        output_path.write_text(
-            json.dumps(report, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with atomic_text_writer(output_path) as output:
+            json.dump(report, output, indent=2, ensure_ascii=False)
 
         return output_path
 
