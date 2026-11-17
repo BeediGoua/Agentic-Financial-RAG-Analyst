@@ -17,7 +17,7 @@ Base de référence : `a869755cc88c132f69a93aae7593d8e20413937e`
 | `scripts/check_env.py`, `Makefile` | Doctor core ne validait pas OCR; doctor-full n'inspectait que deux modèles HF | Core exige Tesseract et `fra`/`eng`; full vérifie Ollama/API/modèle/digest et les quatre modèles HF sans téléchargement | `make doctor`; sortie JSON de `doctor-full` liste chaque composant et les quatre modèles absents |
 | Catalogues de modèles, `embedder.py`, `cross_encoder.py`, `prefetch_models.py` | Les noms HF pointaient sur des révisions mouvantes | Ajout des révisions exactes et leur passage aux loaders et au préchargement | Test des quatre identifiants/révisions; aucun poids téléchargé pour ces contrôles |
 | `.env.example` | Aucun moyen de contrôler le digest Ollama | Ajout de `OLLAMA_MODEL_DIGEST`, optionnel; doctor compare la valeur attendue au digest API | Contrôle du code et diagnostic local; Ollama non disponible |
-| `.github/workflows/g0-ci.yml` | La CI installait hors du parcours réel `make setup` | CI installe Tesseract puis exécute `make setup`, `make doctor`, `make test`; inventaire depuis `.venv` | Runs GitHub Actions de la PR à consulter ci-dessous |
+| `.github/workflows/g0-ci.yml` | La CI installait hors du parcours réel `make setup` | CI installe Tesseract puis exécute `make setup`, `make doctor`, `make test`; inventaire depuis `.venv` | Run push 44081652672 : chaque étape réussie, 8 tests passés |
 | `.devcontainer/devcontainer.json` | Codespaces ne garantissait pas les prérequis OCR | Installation de Tesseract + langues avant `make setup` | JSON vérifié; setup Codespaces réel déjà exécuté dans la session |
 | `docs/SETUP_G0.md` | Les consignes ne distinguaient pas tests obligatoires et dépendances d'inférence | Procédures distinctes, téléchargement explicite, révisions HF et contrôle du digest Ollama | Relecture des instructions et contrôles sans téléchargement |
 
@@ -30,7 +30,8 @@ Base de référence : `a869755cc88c132f69a93aae7593d8e20413937e`
 - Test de non-régression : bootstrap refuse une `.venv` simulée Python 3.12
   avant d'installer quoi que ce soit.
 - Environnement neuf depuis `requirements.lock` : installation réussie,
-  `pip check` sans dépendance cassée, 6 tests passés.
+  `pip check` sans dépendance cassée, 8 tests passés (second environnement
+  Python 3.11 créé après les dernières corrections).
 - Tesseract : installé, langues `fra` et `eng` disponibles.
 - Ollama : absent; API locale non joignable; `qwen2.5:7b` et son digest n'ont
   donc pas pu être vérifiés ni exécutés.
@@ -46,16 +47,23 @@ Base de référence : `a869755cc88c132f69a93aae7593d8e20413937e`
     `233902d25c440f23af6f7d6e94d2946bac0bee0a`
   - `cross-encoder/ms-marco-TinyBERT-L-2-v2` :
     `81d1926f67cb8eee2c2be17ca9f793c7c3bd20cc`
-- CI précédente sur la PR : réussite des jobs push et pull request
-  (`44077381434`, `44077387010`), avant la modification du workflow pour
-  exécuter `make setup`, `make doctor` et `make test`. Le run du workflow mis à
-  jour doit être ajouté après vérification sur GitHub.
+- GitHub Actions : run push `44081652672`, commit
+  `e4174c05a879937a6b228d91b68698209b4e1356`, **success**. Les trois parcours
+  réels `make setup`, `make doctor`, `make test` ont réussi; le log CI confirme
+  8 tests passés, `doctor` 25/25 et `pip check` sans dépendance cassée.
+  Le run pull request `44081660701` sur le même commit est également **success**
+  et confirme les mêmes résultats.
+  URL push : `https://github.com/BeediGoua/Agentic-Financial-RAG-Analyst/actions/runs/44081652672`.
+  URL PR : `https://github.com/BeediGoua/Agentic-Financial-RAG-Analyst/actions/runs/44081660701`.
 
 ## Limites / séparation des niveaux
 
 G0 obligatoire = Python 3.11, lock Python, environnement isolé, Tesseract avec
 `fra`/`eng`, `make setup`, `make doctor`, `make test` et `pip check`. Il ne
 dépend pas de données BRVM, d'Ollama ni de poids de modèles.
+
+Le run CI cité porte sur le commit de code G0; ce journal ne modifie pas le
+comportement du workflow. Le commit de journalisation déclenche une nouvelle CI.
 
 Les contrôles Ollama/HF de `doctor-full` sont diagnostics facultatifs. Un
 échec strict en leur absence est attendu. Aucune inférence complète n'est
