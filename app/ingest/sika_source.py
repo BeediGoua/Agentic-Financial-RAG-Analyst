@@ -17,6 +17,7 @@ import yaml
 
 from app.core.atomic import atomic_text_writer
 from app.core.manifests import create_manifest, write_manifest
+from app.ingest.url_security import RICHBOURSE_HOSTS, get_trusted_response
 from app.ingest.utils import extract_tickers_from_universe, sha256_file
 
 # --- Copie/Adaptation du Client Richbourse depuis l'ancien projet ---
@@ -71,9 +72,17 @@ def _pick_ohlc_and_volume(arrays):
 def fetch_history_raw(symbol: str, timeout_s: int = 15) -> pd.DataFrame:
     url = RICHBOURSE_TECH_URL.format(symbol=symbol.upper())
     headers = {"User-Agent": "brvm-intelligence/1.0", "Accept": "text/html,application/xhtml+xml"}
-    resp = requests.get(url, headers=headers, timeout=timeout_s)
-    resp.raise_for_status()
-    arrays = _extract_data_arrays_from_html(resp.text)
+    resp = get_trusted_response(
+        requests,
+        url,
+        allowed_hosts=RICHBOURSE_HOSTS,
+        headers=headers,
+        timeout=timeout_s,
+    )
+    try:
+        arrays = _extract_data_arrays_from_html(resp.text)
+    finally:
+        resp.close()
     ohlc_arr, vol_arr = _pick_ohlc_and_volume(arrays)
 
     ohlc_rows = []

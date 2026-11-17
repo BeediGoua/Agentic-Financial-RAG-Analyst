@@ -12,8 +12,13 @@ from pathlib import Path
 import requests
 
 from app.core.atomic import atomic_text_writer
-from app.ingest.schemas import ReportDocument
 from app.ingest.quality import QualityAgent
+from app.ingest.schemas import ReportDocument
+from app.ingest.url_security import (
+    configured_pdf_hosts,
+    get_trusted_response,
+    validate_https_url,
+)
 from app.ingest.utils import slugify
 
 
@@ -56,6 +61,11 @@ class StorageAgent:
         return output_dir / filename
 
     def download(self, report: ReportDocument) -> Path:
+        allowed_hosts = configured_pdf_hosts()
+        validate_https_url(
+            report.pdf_url,
+            allowed_hosts=allowed_hosts,
+        )
         output_path = self.build_path(report)
         quality_agent = QualityAgent()
 
@@ -68,8 +78,10 @@ class StorageAgent:
 
         temporary_path: Path | None = None
         try:
-            with self.session.get(
+            with get_trusted_response(
+                self.session,
                 report.pdf_url,
+                allowed_hosts=allowed_hosts,
                 timeout=(10, 60),
                 stream=True,
             ) as response:
@@ -127,6 +139,7 @@ class StorageAgent:
             **report.model_dump(),
             "local_path": str(local_path),
             "checksum_sha256": checksum,
+            "file_size_bytes": local_path.stat().st_size,
             "status": status,
             "downloaded_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -136,6 +149,42 @@ class StorageAgent:
             json.dump(metadata, output, indent=2, ensure_ascii=False)
 
         return manifest_path
+
+    def has_valid_success_manifest(
+        self,
+        local_path: str | Path,
+        checksum: str,
+    ) -> bool:
+        """Check that a PDF has a coherent persisted success manifest."""
+        local_path = Path(local_path)
+        manifest_path = local_path.with_suffix(".manifest.json")
+
+        try:
+            metadata = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(metadata, dict):
+                return False
+            if metadata.get("status") != "success":
+                return False
+            persisted_path = Path(metadata.get("local_path", ""))
+            if persisted_path.resolve(strict=True) != local_path.resolve(strict=True):
+                return False
+            if metadata.get("checksum_sha256") != checksum:
+                return False
+
+            file_size = local_path.stat().st_size
+            if (
+                metadata.get("file_size_bytes") is not None
+                and metadata["file_size_bytes"] != file_size
+            ):
+                return False
+
+            quality_agent = QualityAgent()
+            valid, _, _ = quality_agent.validate_pdf(local_path)
+            if not valid or quality_agent.file_hash(local_path) != checksum:
+                return False
+            return True
+        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
+            return False
 
     def load_existing_checksums(self) -> set[str]:
         checksums: set[str] = set()

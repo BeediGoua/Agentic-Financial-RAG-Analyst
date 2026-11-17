@@ -100,6 +100,28 @@ Une découverte sans rapport fait échouer `run_reports` par défaut. Pour une
 recherche volontairement vide, passez explicitement `--allow-empty` ; cette
 option ne masque ni erreurs de téléchargement ni PDF invalides.
 
+## Validation des destinations BRVM et Richbourse
+
+La découverte et le téléchargement BRVM n'acceptent que HTTPS vers les hôtes
+exacts `brvm.org` et `www.brvm.org`. Les PDF hébergés ailleurs sont refusés par
+défaut ; un domaine tiers ne peut être ajouté qu'après vérification explicite
+de sa relation avec la source officielle, via `BRVM_ALLOWED_PDF_HOSTS`, sous la
+forme d'une liste séparée par des virgules (noms d'hôtes uniquement, sans
+schéma ni chemin). Les liens refusés sont journalisés pour distinguer une
+absence de documents d'une source filtrée.
+
+Les redirections HTTP ne sont jamais suivies automatiquement : chaque
+destination est validée avant la requête suivante, avec un maximum de cinq
+sauts. La liste Richbourse est distincte de celle de la BRVM. TLS reste activé ;
+un certificat interne doit être approuvé par le bundle configuré avec
+`REQUESTS_CA_BUNDLE`, jamais en désactivant sa vérification.
+
+Une liste de noms approuvés ne suffit pas à empêcher le DNS rebinding, les
+réponses DNS compromises ou les proxys mal configurés. En production, limiter
+également l'egress réseau aux destinations publiques approuvées et bloquer les
+adresses loopback, privées, link-local et les services de métadonnées, avec un
+résolveur et un proxy de confiance.
+
 Test 2 — vérifier
 utils.py
 python -c "from app.ingest.utils import parse_year_filter, parse_csv_filter, sha256_file; print('OK utils')"
