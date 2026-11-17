@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 import re
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -10,6 +11,12 @@ from tqdm import tqdm
 
 from app.core.universe import UniverseManager
 from app.ingest.schemas import ReportDocument
+from app.ingest.url_security import (
+    BRVM_HTML_HOSTS,
+    configured_pdf_hosts,
+    get_trusted_response,
+    validate_https_url,
+)
 from app.ingest.utils import normalize_text, parse_csv_filter, parse_year_filter
 
 
@@ -64,9 +71,16 @@ class BRVMSourceAgent:
         self.session.headers.update(HEADERS)
 
     def get_html(self, url: str) -> str:
-        response = self.session.get(url, timeout=30)
-        response.raise_for_status()
-        return response.text
+        response = get_trusted_response(
+            self.session,
+            url,
+            allowed_hosts=BRVM_HTML_HOSTS,
+            timeout=30,
+        )
+        try:
+            return response.text
+        finally:
+            response.close()
 
     @staticmethod
     def extract_year(text: str) -> str | None:
@@ -169,9 +183,25 @@ class BRVMSourceAgent:
             candidate = normalize_text(f"{href} {text}")
 
             if any(normalize_text(k) in candidate for k in keywords):
-                full_url = urljoin(base_url, href)
+                try:
+                    full_url = urljoin(base_url, href)
+                    validate_https_url(
+                        full_url,
+                        allowed_hosts=BRVM_HTML_HOSTS,
+                    )
+                    path = urlsplit(full_url).path
+                except ValueError as exc:
+                    logging.getLogger(__name__).warning(
+                        "Rejected BRVM document-page URL",
+                        extra={
+                            "event": "brvm_url_rejected",
+                            "url": href,
+                            "reason": str(exc),
+                        },
+                    )
+                    continue
 
-                if "brvm.org" in full_url and "/fr/" in full_url:
+                if "/fr/" in path:
                     links.add(full_url)
 
         return sorted(links)
@@ -180,12 +210,29 @@ class BRVMSourceAgent:
     def find_pdf_links(html: str, page_url: str) -> list[str]:
         soup = BeautifulSoup(html, "html.parser")
         pdfs: set[str] = set()
+        logger = logging.getLogger(__name__)
+        allowed_hosts = configured_pdf_hosts()
 
         for a in soup.find_all("a", href=True):
-            full_url = urljoin(page_url, a["href"])
-
-            if ".pdf" in full_url.lower():
-                pdfs.add(full_url)
+            try:
+                full_url = urljoin(page_url, a["href"])
+                if ".pdf" not in full_url.lower():
+                    continue
+                validate_https_url(
+                    full_url,
+                    allowed_hosts=allowed_hosts,
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "Rejected BRVM PDF URL",
+                    extra={
+                        "event": "brvm_pdf_url_rejected",
+                        "url": a["href"],
+                        "reason": str(exc),
+                    },
+                )
+                continue
+            pdfs.add(full_url)
 
         return sorted(pdfs)
 

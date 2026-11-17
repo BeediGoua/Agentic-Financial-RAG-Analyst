@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
 from app.ingest.brvm_source import BRVMSourceAgent
+from app.ingest.schemas import ReportDocument
 from app.ingest.quality import QualityAgent
 from app.ingest.storage import StorageAgent
 from app.ingest.ingestion_health import IngestionHealthMonitor
@@ -20,6 +24,32 @@ class SupervisorAgent:
         self.quality_agent = quality_agent
         self.storage_agent = storage_agent
         self.verbose = verbose
+
+    def _persist_success_manifest(
+        self,
+        report: ReportDocument,
+        local_path: Path,
+        checksum: str,
+    ) -> Path:
+        manifest_path = local_path.with_suffix(".manifest.json")
+        if manifest_path.exists():
+            if self.storage_agent.has_valid_success_manifest(local_path, checksum):
+                return manifest_path
+            logging.getLogger(__name__).warning(
+                "Rebuilding inconsistent ingestion manifest for %s",
+                local_path,
+                extra={
+                    "event": "ingestion_manifest_rebuilt",
+                    "local_path": str(local_path),
+                    "manifest_path": str(manifest_path),
+                },
+            )
+        return self.storage_agent.save_metadata(
+            report=report,
+            local_path=local_path,
+            checksum=checksum,
+            status="success",
+        )
 
     def run(self, limit: int | None = None) -> dict:
         if self.verbose:
@@ -64,11 +94,10 @@ class SupervisorAgent:
                 file_metadata = self.quality_agent.get_file_metadata(local_path)
 
                 if self.quality_agent.is_duplicate(checksum, existing_checksums):
-                    manifest_path = self.storage_agent.save_metadata(
-                        report=report,
-                        local_path=local_path,
-                        checksum=checksum,
-                        status="duplicate",
+                    manifest_path = self._persist_success_manifest(
+                        report,
+                        local_path,
+                        checksum,
                     )
                     results.append({
                         "status": "duplicate",
@@ -82,11 +111,10 @@ class SupervisorAgent:
                     continue
 
                 existing_checksums.add(checksum)
-                manifest_path = self.storage_agent.save_metadata(
-                    report=report,
-                    local_path=local_path,
-                    checksum=checksum,
-                    status="success",
+                manifest_path = self._persist_success_manifest(
+                    report,
+                    local_path,
+                    checksum,
                 )
 
                 results.append({
