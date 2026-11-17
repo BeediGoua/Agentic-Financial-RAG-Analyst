@@ -308,13 +308,6 @@ financial-rag-analyst/
 
 ---
 
-## 20. À retenir en Entretien
-> "Le vrai défi n'était pas de connecter un LLM à des PDF. Le défi était de construire un pipeline fiable : ingestion robuste, extraction correcte, metadata traçables, retrieval évalué, réduction des hallucinations, réponses sourcées, monitoring et déploiement."
-
-**Phrase CV :**
-> *Built and deployed a reliable financial RAG system over annual reports, with structured ingestion, document extraction, section-aware chunking, hybrid retrieval, reranking, source-grounded answers, RAG evaluation, monitoring and cloud deployment.*
-
----
 
 ## Exemples d'exécution (Ingestion Phase 1)
 
