@@ -1,30 +1,30 @@
-#phase 1
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-pydantic>=2.0.0
-tqdm>=4.66.0
-pandas>=2.0.0
-pyyaml>=6.0
-python-dateutil>=2.8.2
-urllib3
+# G0: direct runtime dependencies pinned to audited versions (2026-11-17).
+# This is NOT a transitive lock. Generate requirements.lock with: make lock
+# Python >=3.11,<3.14. Prefer Python 3.11 for the reference setup.
 
-#phase 2
-pymupdf 
-pdfplumber
-pandas
-pytesseract 
-pillow 
-opencv-python
-numpy 
+# Core data ingestion
+requests==2.32.5
+beautifulsoup4==4.14.3
+pydantic==2.13.5
+tqdm==4.67.3
+pandas==2.2.3
+PyYAML==6.0.3
+python-dateutil==2.9.0.post0
+urllib3==2.7.0
 
-#phase 5
-sentence-transformers
+# Document extraction / OCR
+PyMuPDF==1.26.7
+pdfplumber==0.11.9
+pytesseract==0.3.13
+Pillow==12.3.0
+opencv-python==4.13.0.92
+numpy==2.3.5
 
-#phase 6
-chromadb
-faiss-cpu
-sentence-transformers
-python-dotenv
-tqdm
-rank-bm25
-numpy
+# Local retrieval + generation
+sentence-transformers==5.1.2
+faiss-cpu==1.12.0
+python-dotenv==1.2.2
+rank-bm25==0.2.2
+
+# ChromaDB deliberately removed: the current repository uses FAISS and
+# does not expose a ChromaDB backend. Add it only with an implemented use case.

@@ -31,7 +31,7 @@ class CrossEncoderReranker:
 
         config = get_reranking_model_config(model_key)
         self.model_name = config["model_name"]
-        self.model = CrossEncoder(self.model_name)
+        self.model = CrossEncoder(self.model_name, revision=config["revision"])
 
     def load_retrieval_run(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
