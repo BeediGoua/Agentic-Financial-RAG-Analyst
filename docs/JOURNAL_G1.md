@@ -177,5 +177,66 @@ complément de clôture ci-dessous.
 - `.venv/bin/python -m compileall -q app tests` et `git diff --check` :
   réussis.
 - Recherche `verify=False`/`disable_warnings` dans `app/` : aucun résultat.
-- La CI GitHub Actions de cette branche reste à vérifier après publication ;
-  les résultats CI initiaux de la PR #2 sont consignés séparément ci-dessus.
+- À cette étape, la CI du complément n'était pas encore vérifiée ; son
+  résultat ultérieur sur la branche de la PR #3 est consigné ci-dessous.
+
+## Dernière revue G1 — validation des chemins de stockage
+
+### Publication et CI de la PR #3
+
+- La PR **#3** (« preserve ingestion manifests and validate source URLs ») a
+  été fusionnée dans `main`.
+- Commit de fusion vérifié localement : `797982ab107d40bc5ed1f94ac94f1b7b1fcc260c`.
+- Le workflow **G0 - installation and tests**, run GitHub Actions **44144476420**
+  (#15), a testé le commit de tête `1123f93699a179008093e3e9faeb5704e2a96e51`
+  le 17 novembre 2026 sur `ubuntu-24.04`, Python 3.11 : conclusion **success**.
+- Les étapes `Recreate the project environment`, `Check the required G0
+  environment` et `Run deterministic G0 tests` ont toutes réussi. Les logs
+  confirment `G0 doctor (core): 25/25 passed`, **98 tests passed**, et aucune
+  dépendance brisée avec `pip check`.
+- Ces résultats concernent le SHA de la branche PR #3 (parent du commit de
+  fusion), et non les changements de validation de chemin de cette dernière
+  revue.
+
+### Traversée de répertoires
+
+1. **Problème initial :** `StorageAgent.build_path()` utilisait directement
+   `report.year` et `report.document_type` comme segments de répertoire.
+2. **Risque :** des valeurs contenant `../`, des séparateurs Windows ou des
+   composants spéciaux pouvaient sortir de `root_dir` ou écrire dans un chemin
+   inattendu.
+3. **Cause technique :** ces métadonnées sont des chaînes externes et
+   n'étaient pas validées avant la composition du chemin et la création des
+   répertoires.
+4. **Correction :** année bornée à un format `19xx`/`20xx` ou au sentinelle
+   `unknown_year` (les valeurs absentes utilisent ce sentinelle) ; type de
+   document limité à un identifiant commençant par une lettre/chiffre, suivi
+   de lettres, chiffres, `-` ou `_` (valeur absente : `other_report`). Le
+   chemin est construit depuis la racine canonique et le répertoire résolu
+   doit rester sous cette racine. Toutes les validations et le contrôle de
+   confinement précèdent la création des répertoires. Les chemins BRVM valides
+   (`annual_report`, `financial_statements`, `quarterly_report`,
+   `half_year_report`, `other_report`) gardent leur arborescence.
+5. **Fichiers concernés :** `app/ingest/storage.py`,
+   `tests/test_g1_final_hardening.py` et ce journal.
+6. **Tests associés :** année/type valides et absents, années et types
+   traversant les répertoires, chemins absolus, séparateurs Unix/Windows,
+   caractères de contrôle, absence de création de sous-répertoires en cas de
+   rejet et symlinks préexistants sur les composants source, société, année
+   et type pointant hors de la racine.
+7. **Résultats locaux de cette revue :** **114 tests G1 réussis**, **122 tests
+   au total réussis**, 0 échec et 0 ignoré ; `pip check`, `compileall` et
+   `git diff --check` réussis. `make setup` échoue localement sur Alpine/musl
+   car `cuda-bindings==13.5.0` n'a pas de distribution compatible. `make
+   doctor` échoue à 15/23 contrôles pour les dépendances système et Python
+   absentes ; `make test` s'arrête sur ce même doctor avant pytest. La CI
+   Ubuntu 24.04 de la PR #3 a, elle, réussi sur son SHA, comme indiqué plus
+   haut.
+8. **Limites résiduelles :** les symlinks qui existent au moment du contrôle
+   sont résolus et un chemin sortant est refusé. Un processus concurrent
+   capable de modifier les répertoires entre le contrôle et `mkdir` peut
+   encore créer une condition TOCTOU ; cette défense ne remplace pas un
+   stockage dédié non modifiable par des tiers ou des opérations par
+   descripteur de répertoire avec `O_NOFOLLOW`. La racine configurée elle-même
+   est canonisée, de sorte qu'un symlink choisi comme racine désigne
+   explicitement l'emplacement de stockage.

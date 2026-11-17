@@ -22,6 +22,30 @@ from app.ingest.url_security import (
 from app.ingest.utils import slugify
 
 
+def safe_year(value: str | None) -> str:
+    if value is None or value == "":
+        return "unknown_year"
+
+    value = str(value)
+    if value == "unknown_year":
+        return value
+    if not re.fullmatch(r"(?:19|20)\d{2}", value):
+        raise ValueError(f"Invalid report year: {value!r}")
+
+    return value
+
+
+def safe_document_type(value: str | None) -> str:
+    if value is None or value == "":
+        return "other_report"
+
+    value = str(value)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", value):
+        raise ValueError(f"Invalid report document type: {value!r}")
+
+    return value
+
+
 class StorageAgent:
     """
     Agent déterministe.
@@ -46,8 +70,8 @@ class StorageAgent:
     def build_path(self, report: ReportDocument) -> Path:
         source = slugify(report.source or "unknown_source")
         company = slugify(report.company or "unknown_company")
-        year = report.year or "unknown_year"
-        document_type = report.document_type or "other_report"
+        year = safe_year(report.year)
+        document_type = safe_document_type(report.document_type)
 
         short_hash = hashlib.md5(report.pdf_url.encode("utf-8")).hexdigest()[:8]
         base_name = f"{company}_{year}_{document_type}_{short_hash}"
@@ -55,7 +79,16 @@ class StorageAgent:
 
         filename = f"{base_name}.pdf"
 
-        output_dir = self.root_dir / source / company / year / document_type
+        try:
+            root = self.root_dir.resolve()
+            output_dir = root / source / company / year / document_type
+            if not output_dir.resolve().is_relative_to(root):
+                raise ValueError(
+                    "Report storage path escapes its configured root"
+                )
+        except (OSError, RuntimeError) as exc:
+            raise ValueError("Unable to safely resolve report storage path") from exc
+
         output_dir.mkdir(parents=True, exist_ok=True)
 
         return output_dir / filename
