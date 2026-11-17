@@ -1,0 +1,3 @@
+# Test tooling (direct versions pinned; transitive lock still pending).
+pytest==9.0.2
+pytest-cov==7.0.0

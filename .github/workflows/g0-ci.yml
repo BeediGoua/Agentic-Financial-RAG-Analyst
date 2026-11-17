@@ -1,0 +1,45 @@
+name: G0 - installation and tests
+on:
+  push:
+    branches: [main, 'chore/g0-*']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Setup system OCR (required by OCR smoke checks)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
+      - name: Install lockfile dependencies
+        run: |
+          python -m pip install --upgrade pip==25.1.1
+          python -m pip install --requirement requirements.lock
+      - name: Check dependency graph
+        run: |
+          python -m pip check
+      - name: Run deterministic G0 tests
+        run: |
+          python -m pytest -q tests
+      - name: Dependency inventory
+        if: always()
+        run: |
+          python -m pip freeze > g0-pip-freeze.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: g0-environment-${{ matrix.python-version }}
+          path: g0-pip-freeze.txt
+          if-no-files-found: ignore
