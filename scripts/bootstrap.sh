@@ -7,9 +7,13 @@ cd "$ROOT"
 
 resolve_python_bin() {
   local candidate="${PYTHON_BIN:-}"
-  if [[ -n "$candidate" ]] && command -v "$candidate" >/dev/null 2>&1; then
-    echo "$candidate"
-    return 0
+  if [[ -n "$candidate" ]]; then
+    if command -v "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return 0
+    fi
+    echo "ERROR: PYTHON_BIN=$candidate is not executable or not on PATH." >&2
+    return 2
   fi
   if command -v python3.11 >/dev/null 2>&1; then
     echo "python3.11"
@@ -30,13 +34,21 @@ resolve_python_bin() {
 PYTHON_BIN="$(resolve_python_bin)" || exit $?
 "$PYTHON_BIN" - <<'PY'
 import sys
-if not ((3,11) <= sys.version_info[:2] < (3,14)):
-    raise SystemExit('Python 3.11, 3.12 or 3.13 required.')
+if sys.version_info[:2] != (3,11):
+    raise SystemExit('Python 3.11 is required.')
 PY
 if [[ ! -x .venv/bin/python ]]; then
   "$PYTHON_BIN" -m venv .venv
 fi
 PY="${ROOT}/.venv/bin/python"
+"$PY" - <<'PY'
+import sys
+if sys.version_info[:2] != (3,11):
+    raise SystemExit(
+        f'.venv uses Python {sys.version_info.major}.{sys.version_info.minor}; '
+        'Python 3.11 is required. Remove .venv and rerun make setup.'
+    )
+PY
 "$PY" -m pip install --upgrade 'pip==25.1.1'
 if [[ -f requirements.lock ]]; then
   echo "Using fully resolved requirements.lock"

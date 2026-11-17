@@ -1,121 +1,100 @@
-# G0 — Installation et validation reproductible (2026-11-17)
+# G0 — Environnement reproductible
 
-## Portée et limites
+## Environnement obligatoire
 
-Le dépôt cible **Python 3.11**. `requirements.txt` et `requirements-dev.txt`
-contiennent des versions **directes exactes** (`==`), mais **pas encore les
-versions transitives**. Un vrai lock résolu avec hash, `requirements.lock`, est
-prévu par `make lock` et doit être généré sur une machine ayant accès à PyPI,
-commité puis validé en CI. **Ne pas déclarer G0 entièrement validé avant ça.**
-Les modèles Hugging Face et Ollama sont des artefacts externes distincts des
-paquets Python. Ils ne sont pas téléchargés pendant l'installation ni les tests.
+La référence est **Python 3.11**. Le bootstrap crée une `.venv` isolée,
+installe les dépendances depuis `requirements.lock` et échoue si une `.venv`
+existante utilise une autre version Python. Pour corriger une `.venv` invalide,
+supprimez-la explicitement puis relancez `make setup`.
 
-## Prérequis système
-
-- Python **3.11** et `python3.11 -m venv`; `git` pour cloner.
-- Au moins 8 Go de RAM conseillés pour le LLM `qwen2.5:7b` : la consommation
-  exacte dépend du modèle et de sa quantification.
-- Tesseract OCR et langues `fra` + `eng` pour les PDF scannés.
-- Ollama et `qwen2.5:7b` uniquement pour exécuter la génération locale.
-- Accès Internet au **premier** setup pour pip, Ollama et Hugging Face.
-
-Ubuntu / Debian :
+Sur Codespaces, `.devcontainer/devcontainer.json` installe Tesseract et les
+langues `fra`/`eng`, puis lance le setup. Sur Ubuntu/Debian :
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
 ```
 
-Pour Python 3.11, utiliser une distribution Python dédiée (`python.org`, `pyenv`
-ou `uv python install 3.11`) si le gestionnaire de paquets de la
-distribution ne propose pas cette version. Installer aussi son module `venv`.
-
-macOS : installer Python 3.11, Git, et `brew install tesseract tesseract-lang`.
-Windows : privilégier WSL2 Ubuntu pour reproduire la même procédure.
-Ollama : https://ollama.com/download (installation à effectuer séparément).
-Pour vérifier Python et la résolution des dépendances avant d'installer :
-`python3.11 --version` puis `python3.11 -m pip --version`.
-
-## Clone, installation, tests
+Depuis la racine du dépôt :
 
 ```bash
-git clone https://github.com/BeediGoua/Agentic-Financial-RAG-Analyst.git
-cd Agentic-Financial-RAG-Analyst
-bash scripts/bootstrap.sh
-# Ou, ensuite, exécuter uniquement les tests :
-bash scripts/test.sh
-# Équivalent : make test
+make setup
+make test
+make doctor
 ```
 
-Le bootstrap crée `.venv` sans accès aux paquets globaux, installe les
-requirements, exécute `pip check`, puis lance les tests. En cas d'échec, il sort
-avec un code différent de zéro. Le fonctionnement du test ne dépend pas des
-PDF BRVM, d'Ollama ni de modèles Hugging Face téléchargés.
+`make test` n'utilise pas de données BRVM, ne contacte pas Ollama et ne
+télécharge aucun modèle. `make doctor` vérifie Python 3.11, la `.venv`, les
+versions Python épinglées, Tesseract et ses langues française et anglaise.
+Toute anomalie fait échouer ces commandes. Le lock est ciblé Python 3.11 et
+les roues disponibles pour la plateforme Linux x86_64 de référence; d'autres
+plateformes peuvent avoir des roues natives différentes.
 
-`PYTHON_BIN=python3.12 bash scripts/bootstrap.sh` peut servir à tester une
-autre version, mais **Python 3.11 reste la cible de référence**.
+## Dépendances externes d'inférence (facultatives)
 
-## Diagnostic du système complet
+Le diagnostic séparé vérifie l'installation Ollama, son API, le modèle
+`qwen2.5:7b`, son digest, ainsi que les quatre modèles HF et leurs révisions
+exactes en cache. Il ne télécharge rien :
 
 ```bash
-.venv/bin/python scripts/check_env.py --profile core --strict
-.venv/bin/python scripts/check_env.py --profile full
-# Un échec sera signalé par le code de sortie :
+make doctor-full
+# Pour un code d'échec si un service ou modèle manque :
 .venv/bin/python scripts/check_env.py --profile full --strict
 ```
 
-Le mode `full` vérifie `tesseract`, les langues OCR `fra`/`eng`, le binaire
-Ollama, l'API locale, la présence de `qwen2.5:7b` et deux modèles HF en cache.
-Aucune de ces vérifications ne déclenche de téléchargement. Le mode non strict
-présente les éléments manquants pour aider au diagnostic.
+Un échec en l'absence d'Ollama ou de poids HF est normal et ne bloque pas la
+CI G0. Le rapport affiche séparément chaque modèle, son identifiant, sa
+révision épinglée et son état local.
 
-Pour installer les poids au préalable :
+### Ollama
+
+Installez Ollama depuis [ollama.com/download](https://ollama.com/download),
+démarrez son service, puis téléchargez explicitement le modèle :
 
 ```bash
-ollama serve              # autre terminal, si non lancé par le système
+ollama serve
+# Dans un autre terminal :
 ollama pull qwen2.5:7b
-.venv/bin/python scripts/prefetch_models.py
-# Les quatre modèles du catalogue, si nécessaire :
-.venv/bin/python scripts/prefetch_models.py --all
-bash scripts/test.sh --full
+curl -s http://localhost:11434/api/tags
 ```
 
-Modèles HF utilisés par défaut :
-- `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` ;
-- `cross-encoder/ms-marco-TinyBERT-L-2-v2`.
+La réponse `/api/tags` expose le digest du modèle installé. Pour faire vérifier
+ce digest par le diagnostic, renseignez `OLLAMA_MODEL_DIGEST` dans
+l'environnement (copiez la valeur `digest` exacte, préfixe `sha256:` inclus),
+puis lancez `make doctor-full`. Sans digest configuré, le diagnostic rapporte
+la valeur observée sans prétendre verrouiller l'artefact. Après un changement
+de quantification ou une mise à jour voulue, vérifiez et remplacez explicitement
+ce digest. Le digest est déterminé par le modèle réellement tiré, et ne peut
+pas être présumé avant le téléchargement.
 
-Autres variantes dans `app/embeddings/models.py` et `app/reranking/models.py`.
-En production, verrouiller aussi les **revisions/commits des modèles HF**, car
-une simple chaîne de nom ne garantit pas des poids identiques dans le temps.
+### Modèles Hugging Face
 
-## Génération du lock complet (étape bloquante encore ouverte)
+Les quatre modèles définis dans `app/embeddings/models.py` et
+`app/reranking/models.py` ont chacun une révision Git de 40 caractères épinglée
+dans leur configuration. Les loaders et le préchargement emploient ces
+révisions plutôt que la branche mobile `main`.
 
-Sur une machine connectée disposant de `uv` :
+Téléchargement explicite uniquement, après installation :
 
 ```bash
-make lock
-# Vérifier ensuite l'installation depuis zéro, sur Python 3.11 :
-rm -rf .venv
-bash scripts/bootstrap.sh
+.venv/bin/python scripts/prefetch_models.py --all
+make doctor-full
 ```
 
-`requirements.lock` sera préféré par `bootstrap.sh` quand il est présent.
-La CI enregistre également un `pip freeze` en artefact pour l'audit, mais **un
-`pip freeze` CI n'est pas un substitut à un lock versionné et validé**.
+Les modèles peuvent être volumineux. `make doctor-full` ne les télécharge
+jamais et vérifie leur présence en cache à la révision épinglée. Pour changer
+une révision, vérifiez d'abord le commit du dépôt sur Hugging Face, mettez à
+jour le champ `revision` correspondant, puis régénérez/vérifiez le cache.
 
-## Références de configuration
+## Lock et plateforme
 
-- `requirements.txt` : packages runtime directement utilisés, versions épinglées ;
-- `requirements-dev.txt` : pytest ;
-- `.env.example` : paramètres et nom du modèle Ollama cohérents avec le code ;
-- `scripts/check_env.py` : diagnostic des versions, binaires, modèles et service ;
-- `scripts/test.sh` : commande unique de tests hors ligne ;
-- `.github/workflows/g0-ci.yml` : tests d'installation sur Ubuntu/Python 3.11 ;
-- `docs/JOURNAL_G0.md` : journal des décisions, changements et limites.
+`requirements.lock` est généré par `uv pip compile --python-version 3.11
+--generate-hashes` à partir de `requirements.txt` et `requirements-dev.txt`.
+Après modification de ces fichiers, installez `uv`, exécutez `make lock`, puis
+validez l'installation dans un environnement propre avec `make setup`,
+`make test` et `make doctor`.
 
-## Éléments hors du périmètre G0
-
-Correction des erreurs silencieuses d'ingestion, fiabilité du retrieval, citations,
-indexation FAISS, métriques de qualité et tests sur les vrais documents BRVM :
-ce sont des tâches des gates G1 à G4. La présence de tests G0 ne valide pas
-scientifiquement les résultats financiers générés.
+Le lock couvre les versions et hashes des distributions Python pour Python
+3.11. Il ne verrouille ni Tesseract/les paquets système, ni Ollama, ni les
+modèles eux-mêmes. Les révisions HF et le digest Ollama sont des verrous
+distincts, documentés ci-dessus.

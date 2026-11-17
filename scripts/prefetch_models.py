@@ -26,13 +26,23 @@ def main() -> None:
         if args.all
         else [RERANKING_MODELS["tiny_cross_encoder"]["model_name"]]
     )
-    for name in dict.fromkeys(embedding_names):
-        print(f"Downloading embedding model: {name}", flush=True)
-        SentenceTransformer(name)
-    for name in dict.fromkeys(ranking_names):
-        print(f"Downloading reranker: {name}", flush=True)
-        CrossEncoder(name)
-    print("Model downloads completed. Check hashes/revisions before production.")
+    embedding_configs = {
+        cfg["model_name"]: cfg
+        for cfg in EMBEDDING_MODELS.values()
+        if cfg["model_name"] in embedding_names
+    }
+    ranking_configs = {
+        cfg["model_name"]: cfg
+        for cfg in RERANKING_MODELS.values()
+        if cfg["model_name"] in ranking_names
+    }
+    for name, config in embedding_configs.items():
+        print(f"Downloading embedding model: {name}@{config['revision']}", flush=True)
+        SentenceTransformer(name, revision=config["revision"])
+    for name, config in ranking_configs.items():
+        print(f"Downloading reranker: {name}@{config['revision']}", flush=True)
+        CrossEncoder(name, revision=config["revision"])
+    print("Model downloads completed at the pinned revisions.")
 
 
 if __name__ == "__main__":

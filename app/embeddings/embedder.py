@@ -107,7 +107,10 @@ class ChunkEmbedder:
             }
 
         config = get_model_config(model_key)
-        model = SentenceTransformer(config["model_name"])
+        model = SentenceTransformer(
+            config["model_name"],
+            revision=config["revision"],
+        )
         passage_prefix = config["passage_prefix"]
 
         chunks = [
