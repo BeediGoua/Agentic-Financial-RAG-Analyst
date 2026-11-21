@@ -1,5 +1,6 @@
 from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.schemas import RetrievalResult
+from app.evaluation.compare import align_results
 
 
 class Retriever:
@@ -53,3 +54,16 @@ def test_hybrid_rejects_negative_weights():
         pass
     else:
         raise AssertionError("negative hybrid weights must be rejected")
+
+
+def test_bootstrap_rejects_unmatched_samples():
+    try:
+        align_results(
+            [{"question_id": "A", "split": "dev", "corpus_snapshot": "S1", "metrics": {"hit": 1}}],
+            [{"question_id": "B", "split": "dev", "corpus_snapshot": "S1", "metrics": {"hit": 1}}],
+            metric="hit",
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Unmatched comparison samples must be rejected")

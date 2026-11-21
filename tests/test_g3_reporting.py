@@ -21,3 +21,24 @@ def test_atomic_report_formats_and_unique_runs(tmp_path):
     text = markdown.read_text()
     assert "synthetic" in text.lower()
     assert "not representative" in text
+
+
+def test_markdown_report_contains_metrics_and_counts(tmp_path):
+    payload = {
+        "run_id": "r1",
+        "synthetic": True,
+        "counts": {"answerable": 1, "unanswerable": 0, "evaluated": 1, "ignored": 0, "technical_errors": 0},
+        "per_query": [{
+            "question_id": "Q1",
+            "split": "dev",
+            "configuration_id": "bm25_dev",
+            "status": "success",
+            "metrics": {"hit": 1.0, "recall": 1.0},
+        }],
+    }
+    markdown = tmp_path / "report.md"
+    write_markdown(markdown, payload)
+    text = markdown.read_text()
+    assert "Configuration comparison" in text
+    assert "Evaluated: 1" in text
+    assert "Q1" in text

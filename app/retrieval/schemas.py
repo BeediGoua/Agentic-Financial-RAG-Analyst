@@ -12,6 +12,8 @@ class RetrievalResult(BaseModel):
 
     source_pdf: str
     source_url: str | None = None
+    document_sha256: str | None = None
+    source_sha256: str | None = None
     company: str | None = None
     year: str | None = None
     document_type: str | None = None

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import faiss
 import numpy as np
+import os
 try:
     from sentence_transformers import SentenceTransformer
 except ImportError:
@@ -31,9 +32,11 @@ class DenseRetriever:
     def __init__(
         self,
         vector_db_dir: str = "data/vector_db/faiss",
+        allow_model_download: bool = False,
     ):
         self.vector_db_dir = Path(vector_db_dir)
         self._model_cache: dict[str, SentenceTransformer] = {}
+        self.allow_model_download = allow_model_download
 
     def load_metadata(self, metadata_path: Path) -> list[dict]:
         rows = []
@@ -52,6 +55,10 @@ class DenseRetriever:
             )
         if model_key not in self._model_cache:
             config = get_model_config(model_key)
+            if not self.allow_model_download:
+                os.environ["HF_HUB_OFFLINE"] = "1"
+            else:
+                os.environ.pop("HF_HUB_OFFLINE", None)
             self._model_cache[model_key] = SentenceTransformer(
                 config["model_name"],
                 revision=config["revision"],
@@ -231,6 +238,8 @@ class DenseRetriever:
                     embedding_model=item.get("embedding_model"),
                     source_pdf=item["source_pdf"],
                     source_url=item.get("source_url"),
+                    document_sha256=item.get("document_sha256"),
+                    source_sha256=item.get("source_sha256"),
                     company=item.get("company"),
                     year=item.get("year"),
                     document_type=item.get("document_type"),

@@ -105,3 +105,7 @@ Le rapport doit séparer cold start et warm query, conserver médiane, moyenne e
 ## Limites actuelles
 
 À ce stade, aucun PDF BRVM ni aucun index réel n'est disponible dans le dépôt de travail. Aucun jeu de questions vérifié n'est donc publié et aucune performance BRVM réelle n'est revendiquée.
+
+## Unité des métriques
+
+Pour éviter le gonflement du Recall, les IDs de chunks sont remplacés par les IDs de preuves qui ont été validés par le runner. Plusieurs chunks couvrant la même preuve sont dédupliqués. Les groupes sont les unités d'Evidence Coverage@K. Les alternatives d'un même groupe sont interchangeables. nDCG est calculé sur les identifiants de preuves distincts dans l'ordre des candidats, avec les grades du qrel.

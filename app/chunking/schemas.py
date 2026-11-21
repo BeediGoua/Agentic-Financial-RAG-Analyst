@@ -1,4 +1,7 @@
-from pydantic import BaseModel
+import hashlib
+from pathlib import Path
+
+from pydantic import BaseModel, model_validator
 
 
 class TextChunk(BaseModel):
@@ -6,6 +9,7 @@ class TextChunk(BaseModel):
     chunking_strategy: str
 
     source_pdf: str
+    document_sha256: str | None = None
     source_url: str | None = None
     company: str | None = None
     year: str | None = None
@@ -21,6 +25,19 @@ class TextChunk(BaseModel):
     text: str
     char_count: int
     word_count: int
+
+    @model_validator(mode="after")
+    def attach_verified_document_hash(self):
+        if self.document_sha256:
+            return self
+        path = Path(self.source_pdf)
+        if path.is_file():
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(block)
+            self.document_sha256 = digest.hexdigest()
+        return self
 
 
 class ChunkingResult(BaseModel):

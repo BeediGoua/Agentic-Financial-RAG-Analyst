@@ -196,6 +196,7 @@ class ChunkEmbedder:
                 embedding=[float(x) for x in vector],
 
                 source_pdf=chunk["source_pdf"],
+                document_sha256=chunk.get("document_sha256"),
                 source_url=chunk.get("source_url"),
                 company=chunk.get("company"),
                 year=chunk.get("year"),

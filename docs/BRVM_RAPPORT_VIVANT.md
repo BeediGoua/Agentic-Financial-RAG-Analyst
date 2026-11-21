@@ -29,6 +29,20 @@ Les anciens index FAISS sans manifeste G2 ne sont pas migrés automatiquement et
 - Mode fixtures disponible sans réseau ni téléchargement de modèle.
 - Le corpus réel BRVM et les jugements vérifiés ne sont pas disponibles dans le dépôt local actuel.
 - **Aucune performance BRVM réelle mesurée à ce stade.**
+- PR #7 est fusionnée dans `main`; les corrections post-revue sont sur la branche `fix/g3-real-benchmark-completion`.
+- Suite complète après corrections: **177 tests passent**.
+- `make setup` reste bloqué par une exigence CUDA non disponible dans le registre.
+- `make doctor` et `make test` restent bloqués avant pytest par 4 contrôles locaux incomplets.
+
+## État G3
+
+**Infrastructure G3 exécutable** : le runner peut désormais associer les chunks aux preuves indépendamment des identifiants, traiter les recherches vides, calculer les couvertures, appliquer la configuration YAML, séparer les statuts techniques et exporter les résultats par `run_id`.
+
+**Benchmark BRVM réel** : non réalisé. Le dépôt ne contient actuellement ni PDF BRVM réel, ni qrels vérifiés, ni index FAISS réel. Le mode réel retourne donc `REAL_BENCHMARK_NOT_READY`.
+
+Les corrections post-revue portent sur les rangs originaux, la déduplication des alternatives par groupe, la propagation du SHA-256 documentaire et le refus des preuves sans provenance vérifiable. Elles ne constituent aucune mesure réelle BRVM.
+
+Validation locale actuelle: 183 tests pytest réussissent et le smoke test fixtures fonctionne hors ligne. La référence de CI Ubuntu 24.04 reste à obtenir sur GitHub Actions.
 
 ## Discours oral
 
