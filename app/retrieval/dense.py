@@ -238,7 +238,7 @@ class DenseRetriever:
                     embedding_model=item.get("embedding_model"),
                     source_pdf=item["source_pdf"],
                     source_url=item.get("source_url"),
-                    document_sha256=item.get("document_sha256") or item.get("source_sha256"),
+                    document_sha256=item.get("document_sha256"),
                     source_sha256=item.get("source_sha256"),
                     company=item.get("company"),
                     year=item.get("year"),

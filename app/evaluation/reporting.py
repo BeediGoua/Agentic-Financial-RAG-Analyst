@@ -78,6 +78,7 @@ def write_markdown(path: Path, report: dict) -> None:
             for group in configurations.values()
             for row in group
             for name in row.get("metrics", {}).keys()
+            if isinstance(row.get("metrics", {}).get(name), (int, float))
         })
         lines.extend(["## Configuration comparison", "", "| Configuration | " + " | ".join(metric_names) + " |", "|" + "---|" * (len(metric_names) + 1)])
         for configuration_id, group in sorted(configurations.items()):
@@ -87,13 +88,18 @@ def write_markdown(path: Path, report: dict) -> None:
                     float(row["metrics"][name])
                     for row in group
                     if row.get("metrics", {}).get(name) is not None
+                    and isinstance(row["metrics"][name], (int, float))
                 ]
                 values.append(f"{sum(samples) / len(samples):.4f}" if samples else "-")
             lines.append("| " + configuration_id + " | " + " | ".join(values) + " |")
         lines.extend(["", "## Results by question", "", "| Question | Split | Configuration | Status | Metrics |", "|---|---|---|---|---|"])
         for row in rows:
             metrics = row.get("metrics") or {}
-            metrics_text = ", ".join(f"{key}={value:.4f}" for key, value in sorted(metrics.items()))
+            metrics_text = ", ".join(
+                f"{key}={value:.4f}"
+                for key, value in sorted(metrics.items())
+                if isinstance(value, (int, float))
+            )
             lines.append(
                 f"| {row.get('question_id')} | {row.get('split', '-')} | "
                 f"{row.get('configuration_id')} | {row.get('status')} | {metrics_text} |"

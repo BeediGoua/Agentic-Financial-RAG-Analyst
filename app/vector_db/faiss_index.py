@@ -259,6 +259,7 @@ class FaissIndexBuilder:
                         embedding_model=row["embedding_model"],
 
                         source_pdf=row["source_pdf"],
+                        document_sha256=row.get("document_sha256"),
                         source_url=row.get("source_url"),
                         company=row.get("company"),
                         year=row.get("year"),

@@ -7,7 +7,13 @@ from typing import Iterable
 
 from app.evaluation.adapters import run_adapter_search
 from app.evaluation.evidence import evidence_matches_chunk
-from app.evaluation.metrics import aggregate_metrics, evaluate_ranked_query, evidence_coverage
+from app.evaluation.metrics import (
+    aggregate_metrics,
+    evaluate_ranked_query,
+    evaluate_ranked_results,
+    evidence_coverage,
+)
+from app.evaluation.corpus import build_document_registry, resolve_document_sha256
 from app.evaluation.schemas import GoldQuestion
 
 
@@ -27,11 +33,16 @@ class BenchmarkRunner:
         corpus_snapshot: dict,
         seed: int = 42,
         synthetic: bool = True,
+        document_registry: dict | None = None,
     ) -> None:
         self.retrievers = retrievers
         self.corpus_snapshot = corpus_snapshot
         self.seed = seed
         self.synthetic = synthetic
+        self.document_registry = document_registry or build_document_registry(
+            [],
+            corpus_manifest=corpus_snapshot,
+        )
         self.run_id = uuid.uuid4().hex
 
     def run(
@@ -132,16 +143,30 @@ class BenchmarkRunner:
                                 item["provenance_status"] = "missing_provenance"
                                 enriched_ranked.append(item)
                                 continue
-                            chunk_document_sha = str(
-                                item.get("document_sha256")
-                                or item.get("source_sha256")
-                                or ""
-                            ).lower()
+                            chunk_document_sha = str(item.get("document_sha256") or "").lower()
                             if not chunk_document_sha:
                                 item = dict(item)
                                 item["matched_evidence_ids"] = []
                                 item["matched_group_ids"] = []
                                 item["provenance_status"] = "missing_provenance"
+                                enriched_ranked.append(item)
+                                continue
+                            registry_sha, provenance_status = resolve_document_sha256(
+                                item.get("source_pdf"),
+                                self.document_registry,
+                            )
+                            if not self.synthetic and provenance_status != "verified":
+                                item = dict(item)
+                                item["matched_evidence_ids"] = []
+                                item["matched_group_ids"] = []
+                                item["provenance_status"] = provenance_status
+                                enriched_ranked.append(item)
+                                continue
+                            if registry_sha and chunk_document_sha != registry_sha:
+                                item = dict(item)
+                                item["matched_evidence_ids"] = []
+                                item["matched_group_ids"] = []
+                                item["provenance_status"] = "document_hash_mismatch"
                                 enriched_ranked.append(item)
                                 continue
                             for group in question.evidence_groups:
@@ -163,22 +188,31 @@ class BenchmarkRunner:
                                 "verified" if item_matches else "verified_document_not_matching"
                             )
                             enriched_ranked.append(item)
-                        ranked_ids = matched_evidence_ids
                         metrics = {}
                         if status in ("success", "empty"):
-                            metrics = evaluate_ranked_query(
-                                ranked_ids,
+                            metrics = evaluate_ranked_results(
+                                enriched_ranked,
+                                evidence_groups,
                                 qrels,
                                 k=top_k,
                                 relevant_threshold=relevant_threshold,
                             )
-                            coverage = evidence_coverage(ranked_ids, evidence_groups)
+                            matched_ids_at_top = [
+                                evidence_id
+                                for item in enriched_ranked[:top_k]
+                                for evidence_id in (item.get("matched_evidence_ids") or [])
+                            ]
+                            coverage = evidence_coverage(
+                                list(dict.fromkeys(matched_ids_at_top)),
+                                evidence_groups,
+                            )
                             metrics.update(coverage)
                             for k in sorted(set((k_values or [top_k]))):
                                 if k <= 0:
                                     continue
-                                k_metrics = evaluate_ranked_query(
-                                    ranked_ids,
+                                k_metrics = evaluate_ranked_results(
+                                    enriched_ranked,
+                                    evidence_groups,
                                     qrels,
                                     k=k,
                                     relevant_threshold=relevant_threshold,
@@ -187,7 +221,15 @@ class BenchmarkRunner:
                                 metrics[f"recall@{k}"] = k_metrics["recall"]
                                 metrics[f"mrr@{k}"] = k_metrics["reciprocal_rank"]
                                 metrics[f"ndcg@{k}"] = k_metrics["ndcg"]
-                                k_coverage = evidence_coverage(ranked_ids[:k], evidence_groups)
+                                k_matches = [
+                                    evidence_id
+                                    for item in enriched_ranked[:k]
+                                    for evidence_id in (item.get("matched_evidence_ids") or [])
+                                ]
+                                k_coverage = evidence_coverage(
+                                    list(dict.fromkeys(k_matches)),
+                                    evidence_groups,
+                                )
                                 metrics[f"evidence_coverage@{k}"] = k_coverage["evidence_coverage"]
                                 metrics[f"all_evidence@{k}"] = k_coverage["all_evidence"]
                         else:
@@ -200,7 +242,11 @@ class BenchmarkRunner:
                                 "status": status,
                                 "query": question.question,
                                 "top_k": top_k,
-                                "retrieved_ids": ranked_ids,
+                                "retrieved_ids": [
+                                    str(item.get("chunk_id") or "")
+                                    for item in enriched_ranked
+                                    if item.get("chunk_id")
+                                ],
                                 "retrieved_evidence_ids": matched_evidence_ids,
                                 "matched_group_ids": matched_group_ids,
                                 "metrics": metrics,

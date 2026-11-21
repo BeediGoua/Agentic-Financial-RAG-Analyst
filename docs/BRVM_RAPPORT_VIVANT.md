@@ -40,6 +40,10 @@ Les anciens index FAISS sans manifeste G2 ne sont pas migrés automatiquement et
 
 **Benchmark BRVM réel** : non réalisé. Le dépôt ne contient actuellement ni PDF BRVM réel, ni qrels vérifiés, ni index FAISS réel. Le mode réel retourne donc `REAL_BENCHMARK_NOT_READY`.
 
+Les corrections post-revue portent sur les rangs originaux, la déduplication des alternatives par groupe, la propagation du SHA-256 documentaire et le refus des preuves sans provenance vérifiable. Elles ne constituent aucune mesure réelle BRVM.
+
+Validation locale actuelle: 183 tests pytest réussissent et le smoke test fixtures fonctionne hors ligne. La référence de CI Ubuntu 24.04 reste à obtenir sur GitHub Actions.
+
 ## Discours oral
 
 « Après avoir sécurisé l'ingestion des rapports financiers, je me suis concentré sur une autre source de risque : l'intégrité de la chaîne d'indexation. Même avec un moteur FAISS fonctionnel, une réponse peut mélanger les vecteurs, les métadonnées et les documents si les chemins, les caches ou les filtres ne sont pas vérifiés. J'ai donc renforcé l'alignement des vecteurs, la traçabilité des artefacts et l'homogénéité du filtrage dense/BM25/hybride. L'objectif n'était pas d'optimiser les scores de pertinence, mais d'obtenir une base techniquement fiable et vérifiable. »

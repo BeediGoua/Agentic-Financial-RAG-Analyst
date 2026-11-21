@@ -15,11 +15,7 @@ def evidence_matches_chunk(
     evidence: dict,
     chunk: dict,
 ) -> bool:
-    document_sha256 = str(
-        chunk.get("document_sha256")
-        or chunk.get("source_sha256")
-        or ""
-    )
+    document_sha256 = str(chunk.get("document_sha256") or "")
     if not evidence.get("document_sha256") or not document_sha256:
         return False
     if evidence["document_sha256"].lower() != document_sha256.lower():

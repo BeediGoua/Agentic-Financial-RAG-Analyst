@@ -7,6 +7,108 @@ from pathlib import Path
 from typing import Iterable
 
 
+def normalize_document_path(path: str | Path) -> str:
+    """Normalize Linux and Windows PDF paths for identity matching."""
+    text = str(path).strip().replace("\\", "/")
+    if len(text) >= 2 and text[1] == ":":
+        text = text[0].upper() + text[1:]
+    return str(Path(text)) if not text.startswith(("C:/", "D:/")) else text
+
+
+def build_document_registry(
+    manifest_payloads: Iterable[dict | str | Path] = (),
+    *,
+    corpus_manifest: dict | None = None,
+) -> dict:
+    """Build source_pdf -> verified SHA-256 registry from G1/corpus manifests."""
+    records: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    missing: set[str] = set()
+
+    payloads: list[dict] = []
+    for payload in manifest_payloads:
+        if isinstance(payload, dict):
+            payloads.append(payload)
+            continue
+        path = Path(payload)
+        if path.is_file():
+            try:
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    payloads.append(loaded)
+            except (OSError, json.JSONDecodeError):
+                continue
+
+    if isinstance(corpus_manifest, dict):
+        payloads.append(corpus_manifest)
+        for record in corpus_manifest.get("document_records", []):
+            if isinstance(record, dict):
+                payloads.append({
+                    "local_path": record.get("source_pdf"),
+                    "checksum_sha256": record.get("document_sha256"),
+                })
+
+    for payload in payloads:
+        source_pdf = payload.get("local_path") or payload.get("source_pdf")
+        expected = str(
+            payload.get("checksum_sha256")
+            or payload.get("document_sha256")
+            or ""
+        ).lower()
+        if not source_pdf:
+            continue
+        normalized = normalize_document_path(source_pdf)
+        if len(expected) != 64:
+            missing.add(normalized)
+            continue
+        existing = records.get(normalized)
+        if existing and existing != expected:
+            ambiguous.add(normalized)
+        else:
+            records[normalized] = expected
+
+    basename_map: dict[str, set[str]] = {}
+    for source in records:
+        basename = source.rstrip("/").rsplit("/", 1)[-1].lower()
+        basename_map.setdefault(basename, set()).add(source)
+    for source in list(records):
+        basename = source.rstrip("/").rsplit("/", 1)[-1].lower()
+        if len(basename_map[basename]) > 1:
+            ambiguous.update(basename_map[basename])
+
+    return {
+        "records": records,
+        "ambiguous_paths": sorted(ambiguous),
+        "missing_paths": sorted(missing),
+    }
+
+
+def resolve_document_sha256(
+    source_pdf: str | None,
+    registry: dict,
+) -> tuple[str | None, str]:
+    """Resolve and verify a PDF identity, returning (SHA-256, status)."""
+    if not source_pdf:
+        return None, "missing_provenance"
+    normalized = normalize_document_path(source_pdf)
+    records = registry.get("records", {})
+    if normalized in records:
+        return records[normalized], "verified"
+    if normalized in registry.get("ambiguous_paths", []):
+        return None, "ambiguous_provenance"
+    basename = normalized.rstrip("/").rsplit("/", 1)[-1].lower()
+    matches = [
+        (path, sha)
+        for path, sha in records.items()
+        if path.rstrip("/").rsplit("/", 1)[-1].lower() == basename
+    ]
+    if len(matches) == 1:
+        return matches[0][1], "verified"
+    if len(matches) > 1:
+        return None, "ambiguous_provenance"
+    return None, "missing_provenance"
+
+
 def sha256_file(path: str | Path) -> str:
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:

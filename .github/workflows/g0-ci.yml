@@ -1,7 +1,7 @@
 name: G0 - installation and tests
 on:
   push:
-    branches: [main, 'chore/g0-*']
+    branches: [main, 'chore/g0-*', 'fix/g3-*']
   pull_request:
     branches: [main]
 permissions:

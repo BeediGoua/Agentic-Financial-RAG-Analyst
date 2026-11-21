@@ -8,7 +8,11 @@ from uuid import uuid4
 
 import yaml
 
-from app.evaluation.corpus import build_corpus_manifest, sha256_file
+from app.evaluation.corpus import (
+    build_corpus_manifest,
+    build_document_registry,
+    sha256_file,
+)
 from app.evaluation.qrels import load_questions
 from app.evaluation.reporting import (
     write_csv_atomic,
@@ -61,6 +65,17 @@ def validate_config(config: dict) -> dict:
     return config
 
 
+def resolve_benchmark_top_k(config: dict, cli_top_k: int | None) -> tuple[int, list[int]]:
+    """CLI --top-k overrides YAML k_values; no CLI value means YAML is authoritative."""
+    k_values = list(config["benchmark"]["k_values"])
+    if cli_top_k is not None:
+        if cli_top_k <= 0:
+            raise ValueError("--top-k must be a positive integer")
+        return cli_top_k, sorted(set(k_values + [cli_top_k]))
+    top_k = max(k_values)
+    return top_k, sorted(set(k_values))
+
+
 def build_fixture_questions() -> list[GoldQuestion]:
     return [
         GoldQuestion(
@@ -101,7 +116,12 @@ def main() -> int:
     parser.add_argument("--config", default="config/evaluation_g3.yaml")
     parser.add_argument("--output-dir", default="data/evaluation/runs/fixture_smoke")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=None,
+        help="Override YAML k_values for the retrieval cutoff (YAML k_values remain reported)",
+    )
     parser.add_argument("--allow-model-download", action="store_true")
     parser.add_argument("--chunks-dir", default="data/chunks")
     parser.add_argument("--vector-db-dir", default="data/vector_db/faiss")
@@ -109,6 +129,7 @@ def main() -> int:
 
     try:
         config = validate_config(load_config(args.config))
+        top_k, k_values = resolve_benchmark_top_k(config, args.top_k)
         output_dir = Path(args.output_dir)
         if args.mode == "fixtures":
             questions = build_fixture_questions()
@@ -142,9 +163,9 @@ def main() -> int:
                 strategies=config["retrieval"]["strategies"],
                 models=config["retrieval"]["embedding_models"],
                 methods=config["retrieval"]["methods"],
-                top_k=max(config["benchmark"]["k_values"]),
+                top_k=top_k,
                 relevant_threshold=int(config["benchmark"].get("relevance_threshold", 2)),
-                k_values=config["benchmark"]["k_values"],
+                k_values=k_values,
             )
             report["synthetic"] = True
             report["mode"] = "fixtures"
@@ -174,6 +195,10 @@ def main() -> int:
                 document_hashes = manifest.get("document_hashes", [])
                 if document_hashes and any(len(str(value)) != 64 for value in document_hashes):
                     missing.append("corpus manifest contains invalid document SHA-256")
+                document_records = manifest.get("document_records", [])
+                if isinstance(document_records, list):
+                    if len(document_records) != int(manifest.get("documents_count", 0)):
+                        missing.append("corpus manifest document records do not match documents_count")
                 for record in manifest.get("document_records", []):
                     source_pdf = record.get("source_pdf")
                     expected_sha = str(record.get("document_sha256") or "").lower()
@@ -183,6 +208,27 @@ def main() -> int:
                     actual_sha = sha256_file(source_pdf)
                     if not expected_sha or actual_sha != expected_sha:
                         missing.append(f"document SHA-256 mismatch: {source_pdf}")
+            if 'manifest' in locals() and isinstance(manifest, dict):
+                registry = build_document_registry([], corpus_manifest=manifest)
+                known_hashes = {
+                    str(value).lower()
+                    for value in manifest.get("document_hashes", [])
+                } | set(registry.get("records", {}).values())
+                for question in (questions if 'questions' in locals() else []):
+                    if question.annotation_status != "verified":
+                        continue
+                    for evidence_group in question.evidence_groups:
+                        for alternative in evidence_group.alternatives:
+                            if alternative.document_sha256 not in known_hashes:
+                                missing.append(
+                                    f"evidence provenance unavailable: "
+                                    f"{alternative.evidence_id}"
+                                )
+                if registry.get("ambiguous_paths"):
+                    missing.append(
+                        "ambiguous document paths: "
+                        + ", ".join(registry["ambiguous_paths"])
+                    )
             if missing:
                 report = {
                     "status": "REAL_BENCHMARK_NOT_READY",
@@ -209,19 +255,25 @@ def main() -> int:
                 corpus_snapshot=manifest,
                 seed=args.seed,
                 synthetic=False,
+                document_registry=registry,
             )
             report = runner.run(
                 questions,
                 strategies=config["retrieval"]["strategies"],
                 models=config["retrieval"]["embedding_models"],
                 methods=config["retrieval"]["methods"],
-                top_k=max(config["benchmark"]["k_values"]),
+                top_k=top_k,
                 relevant_threshold=int(config["benchmark"].get("relevance_threshold", 2)),
-                k_values=config["benchmark"]["k_values"],
+                k_values=k_values,
             )
             report["synthetic"] = False
             report["mode"] = "real"
             report["allow_model_download"] = bool(args.allow_model_download)
+
+        report["counts"]["by_split"] = {
+            split: sum(1 for row in report.get("per_query", []) if row.get("split") == split)
+            for split in ("dev", "test")
+        }
 
         run_output_dir = output_dir / str(report["run_id"])
         write_json_atomic(run_output_dir / "summary.json", report)

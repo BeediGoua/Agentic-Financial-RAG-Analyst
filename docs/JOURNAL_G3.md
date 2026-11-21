@@ -66,6 +66,20 @@ Le benchmark réel n'est pas prêt : aucun PDF BRVM suivi, aucun chunk, embeddin
 - Le CLI réel retourne `REAL_BENCHMARK_NOT_READY` tant que le corpus, les PDF, les SHA-256 ou les annotations vérifiées ne sont pas disponibles.
 - Les sorties utilisent un sous-répertoire par `run_id`.
 
+## Corrections G3 post-revue indépendante
+
+- Les métriques utilisent désormais les positions originales des chunks; les listes compressées d'evidence IDs ne sont plus utilisées pour MRR/nDCG.
+- Hit@K et MRR@K sont définis sur le chunk classé; Recall@K/nDCG@K dédupliquent les alternatives par groupe indispensable.
+- Evidence Coverage@K et All-Evidence@K restent définis au niveau du groupe de preuves.
+- `document_sha256` est propagé dans les schémas chunk, embedding et métadonnées vectorielles, avec compatibilité `source_sha256`.
+- Un registre documentaire relie les manifests G1 vérifiés aux PDF, avec normalisation Windows/Linux, détection des ambiguïtés et vérification SHA-256.
+- Toute provenance absente ou incohérente produit un statut explicite et empêche la correspondance des preuves.
+
+## Résultat de validation
+
+- Suite locale pytest: **183 tests réussis**, 3 avertissements de dépréciation.
+- Smoke test `fixtures`: réussi hors ligne.
+
 ## Validation post-corrections
 
 - Suite G3 ciblée : **29 tests passent**.
