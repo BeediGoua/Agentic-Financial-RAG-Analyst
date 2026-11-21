@@ -1,0 +1,57 @@
+schema_version: 1
+
+benchmark:
+  name: brvm_retrieval_g3
+  seed: 42
+  splits:
+    - dev
+    - test
+  k_values:
+    - 1
+    - 5
+    - 10
+    - 20
+  relevance_threshold: 2
+  require_verified_qrels: true
+  refuse_provisional_as_final: true
+
+retrieval:
+  strategies:
+    - recursive_fixed
+    - page_aware
+    - section_aware
+  embedding_models:
+    - mini_lm_multilingual
+    - e5_small
+  methods:
+    - bm25
+    - dense
+    - hybrid
+  candidate_pools:
+    - 20
+    - 50
+
+reranking:
+  enabled_in_unit_tests: false
+  models:
+    - mini_cross_encoder
+    - tiny_cross_encoder
+  candidate_pool: 50
+
+evaluation:
+  report_judged_fraction: true
+  report_group_coverage: true
+  report_page_level: true
+  report_evidence_level: true
+  report_latency: true
+
+statistics:
+  bootstrap_seed: 42
+  bootstrap_repetitions: 1000
+
+outputs:
+  save_per_query: true
+  save_ranked_results: true
+  save_summary_json: true
+  save_summary_csv: true
+  save_markdown_report: true
