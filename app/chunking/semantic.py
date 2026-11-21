@@ -14,6 +14,8 @@ from app.chunking.utils import (
     recursive_split_text,
     write_jsonl,
 )
+from app.chunking.utils import validate_cached_chunks, write_chunk_artifact
+from app.core.artifact_cache import artifact_cache_valid, build_fingerprint, write_artifact_manifest
 
 
 class SemanticChunking:
@@ -40,12 +42,19 @@ class SemanticChunking:
 
         self.model = None
 
+    def load_model(self) -> None:
+        if self.model is not None:
+            return
         try:
             from sentence_transformers import SentenceTransformer
-
-            self.model = SentenceTransformer(model_name)
-        except Exception:
-            self.model = None
+            self.model = SentenceTransformer(
+                self.model_name,
+                revision="e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Semantic chunking model could not be loaded: {exc}"
+            ) from exc
 
     def split_sentences(self, text: str) -> list[str]:
         sentences = re.split(r"(?<=[.!?])\s+", text.strip())
@@ -60,9 +69,10 @@ class SemanticChunking:
     def semantic_split(self, text: str) -> list[str]:
         sentences = self.split_sentences(text)
 
-        if len(sentences) <= 2 or self.model is None:
+        if len(sentences) <= 2:
             return recursive_split_text(text, chunk_size=1400, chunk_overlap=150)
 
+        self.load_model()
         embeddings = self.model.encode(sentences, normalize_embeddings=True)
 
         chunks = []
@@ -89,9 +99,24 @@ class SemanticChunking:
 
     def run_file(self, input_path: Path, companies=None, years=None, force: bool = False) -> dict:
         output_path = self.build_output_path(input_path)
-
-        if output_path.exists() and not force:
-            return {"status": "already_exists", "strategy": self.strategy, "output_path": str(output_path)}
+        model_revision = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
+        fingerprint = build_fingerprint(
+            source_path=input_path,
+            stage="chunking",
+            params={
+                "strategy": self.strategy,
+                "companies": sorted(companies or []),
+                "years": sorted(years or []),
+                "model_name": self.model_name,
+                "model_revision": model_revision,
+                "similarity_threshold": self.similarity_threshold,
+                "max_words": self.max_words,
+            },
+        )
+        if not force and artifact_cache_valid(output_path, fingerprint):
+            valid, count = validate_cached_chunks(output_path, expected_strategy=self.strategy)
+            if valid:
+                return {"status": "already_exists", "strategy": self.strategy, "output_path": str(output_path), "chunks_count": count}
 
         pages = [
             page for page in load_jsonl(input_path)
@@ -140,7 +165,7 @@ class SemanticChunking:
                         )
                     )
 
-        write_jsonl(output_path, chunks)
+        write_chunk_artifact(output_path, chunks, fingerprint)
 
         return {
             "status": "success",

@@ -11,7 +11,10 @@ from app.chunking.utils import (
     matches_filter,
     recursive_split_text,
     write_jsonl,
+    validate_cached_chunks,
+    write_chunk_artifact,
 )
+from app.core.artifact_cache import artifact_cache_valid, build_fingerprint, write_artifact_manifest
 
 
 class SectionAwareChunking:
@@ -36,9 +39,21 @@ class SectionAwareChunking:
 
     def run_file(self, input_path: Path, companies=None, years=None, force: bool = False) -> dict:
         output_path = self.build_output_path(input_path)
-
-        if output_path.exists() and not force:
-            return {"status": "already_exists", "strategy": self.strategy, "output_path": str(output_path)}
+        fingerprint = build_fingerprint(
+            source_path=input_path,
+            stage="chunking",
+            params={
+                "strategy": self.strategy,
+                "companies": sorted(companies or []),
+                "years": sorted(years or []),
+                "chunk_size": self.chunk_size,
+                "chunk_overlap": self.chunk_overlap,
+            },
+        )
+        if not force and artifact_cache_valid(output_path, fingerprint):
+            valid, count = validate_cached_chunks(output_path, expected_strategy=self.strategy)
+            if valid:
+                return {"status": "already_exists", "strategy": self.strategy, "output_path": str(output_path), "chunks_count": count}
 
         pages = [
             page for page in load_jsonl(input_path)
@@ -96,7 +111,7 @@ class SectionAwareChunking:
                         )
                     )
 
-        write_jsonl(output_path, chunks)
+        write_chunk_artifact(output_path, chunks, fingerprint)
 
         return {
             "status": "success",
