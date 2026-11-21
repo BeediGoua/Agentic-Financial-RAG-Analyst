@@ -40,12 +40,19 @@ class SemanticChunking:
 
         self.model = None
 
+    def load_model(self) -> None:
+        if self.model is not None:
+            return
         try:
             from sentence_transformers import SentenceTransformer
-
-            self.model = SentenceTransformer(model_name)
-        except Exception:
-            self.model = None
+            self.model = SentenceTransformer(
+                self.model_name,
+                revision="e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Semantic chunking model could not be loaded: {exc}"
+            ) from exc
 
     def split_sentences(self, text: str) -> list[str]:
         sentences = re.split(r"(?<=[.!?])\s+", text.strip())
@@ -60,9 +67,10 @@ class SemanticChunking:
     def semantic_split(self, text: str) -> list[str]:
         sentences = self.split_sentences(text)
 
-        if len(sentences) <= 2 or self.model is None:
+        if len(sentences) <= 2:
             return recursive_split_text(text, chunk_size=1400, chunk_overlap=150)
 
+        self.load_model()
         embeddings = self.model.encode(sentences, normalize_embeddings=True)
 
         chunks = []

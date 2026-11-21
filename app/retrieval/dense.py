@@ -5,9 +5,13 @@ from pathlib import Path
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
 
 from app.embeddings.models import get_model_config
+from app.retrieval.filters import matches_retrieval_filters
 from app.retrieval.schemas import RetrievalResult
 
 
@@ -43,7 +47,10 @@ class DenseRetriever:
     def get_model(self, model_key: str) -> SentenceTransformer:
         if model_key not in self._model_cache:
             config = get_model_config(model_key)
-            self._model_cache[model_key] = SentenceTransformer(config["model_name"])
+            self._model_cache[model_key] = SentenceTransformer(
+                config["model_name"],
+                revision=config["revision"],
+            )
 
         return self._model_cache[model_key]
 
@@ -59,6 +66,53 @@ class DenseRetriever:
         )
 
         return np.array(vector, dtype="float32")
+
+    def validate_index_metadata(
+        self,
+        index,
+        metadata: list[dict],
+        *,
+        expected_dimension: int,
+        strategy: str,
+        model_key: str,
+    ) -> None:
+        if index.ntotal != len(metadata):
+            raise ValueError(
+                f"Index/metadata mismatch: {index.ntotal} vectors versus "
+                f"{len(metadata)} metadata rows"
+            )
+        if index.ntotal <= 0:
+            raise ValueError("Empty FAISS index")
+        if index.d != expected_dimension:
+            raise ValueError(
+                f"Invalid FAISS dimension: {index.d} instead of {expected_dimension}"
+            )
+
+        seen_chunk_ids: set[str] = set()
+        for position, row in enumerate(metadata):
+            if row.get("vector_id") != position:
+                raise ValueError(f"Misaligned metadata at position {position}")
+            if row.get("chunking_strategy") != strategy:
+                raise ValueError("Metadata strategy mismatch")
+            if row.get("embedding_model") != model_key:
+                raise ValueError("Metadata embedding model mismatch")
+            chunk_id = str(row.get("chunk_id") or "")
+            if not chunk_id:
+                raise ValueError("Missing chunk identifier")
+            if chunk_id in seen_chunk_ids:
+                raise ValueError(f"Duplicate chunk identifier: {chunk_id}")
+            seen_chunk_ids.add(chunk_id)
+            if not row.get("source_pdf"):
+                raise ValueError("Missing document provenance")
+            if not str(row.get("text") or "").strip():
+                raise ValueError("Missing chunk text")
+            page_start = row.get("page_start")
+            page_end = row.get("page_end")
+            if page_start is not None and int(page_start) < 1:
+                raise ValueError("Invalid page_start")
+            if page_end is not None and page_start is not None:
+                if int(page_end) < int(page_start):
+                    raise ValueError("Invalid page range")
 
     def get_index_paths(
         self,
@@ -88,20 +142,54 @@ class DenseRetriever:
         index_path: Path,
         metadata_path: Path,
         top_k: int = 5,
+        companies: list[str] | None = None,
+        years: list[str] | None = None,
     ) -> list[RetrievalResult]:
-        index = faiss.read_index(str(index_path))
+        if top_k <= 0:
+            return []
+        try:
+            index = faiss.read_index(str(index_path))
+        except Exception as exc:
+            raise ValueError(f"Unable to read FAISS index {index_path}: {exc}") from exc
         metadata = self.load_metadata(metadata_path)
-
+        config = get_model_config(model_key)
+        self.validate_index_metadata(
+            index,
+            metadata,
+            expected_dimension=int(config["dimension"]),
+            strategy=strategy,
+            model_key=model_key,
+        )
         query_vector = self.embed_query(query, model_key)
+        if query_vector.shape[1] != index.d:
+            raise ValueError(
+                f"Query dimension mismatch: {query_vector.shape[1]} instead of {index.d}"
+            )
 
-        scores, ids = index.search(query_vector, top_k)
+        search_size = min(index.ntotal, max(top_k * 4, 32))
+        matching: list[tuple[int, float]] = []
+        while True:
+            scores, ids = index.search(query_vector, search_size)
+            matching = []
+            for vector_id, score in zip(ids[0], scores[0]):
+                if int(vector_id) < 0 or int(vector_id) >= len(metadata):
+                    continue
+                item = metadata[int(vector_id)]
+                if not matches_retrieval_filters(
+                    item,
+                    companies=companies,
+                    years=years,
+                ):
+                    continue
+                matching.append((int(vector_id), float(score)))
+            if len(matching) >= top_k or search_size >= index.ntotal:
+                break
+            search_size = min(index.ntotal, search_size * 2)
 
         results = []
 
-        for rank, (vector_id, score) in enumerate(zip(ids[0], scores[0]), start=1):
-            if vector_id < 0 or vector_id >= len(metadata):
-                continue
-
+        matching.sort(key=lambda pair: pair[1], reverse=True)
+        for rank, (vector_id, score) in enumerate(matching[:top_k], start=1):
             item = metadata[vector_id]
 
             results.append(
@@ -135,7 +223,11 @@ class DenseRetriever:
         strategy: str,
         model_key: str,
         top_k: int = 5,
+        companies: list[str] | None = None,
+        years: list[str] | None = None,
     ) -> list[RetrievalResult]:
+        if top_k <= 0:
+            return []
         pairs = self.get_index_paths(strategy=strategy, model_key=model_key)
 
         all_results = []
@@ -149,6 +241,8 @@ class DenseRetriever:
                     index_path=index_path,
                     metadata_path=metadata_path,
                     top_k=top_k,
+                    companies=companies,
+                    years=years,
                 )
             )
 

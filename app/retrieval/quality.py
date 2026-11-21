@@ -32,7 +32,7 @@ class RetrievalQuality:
         if total_runs == 0 or total_results == 0:
             status = "FAIL"
         elif error_runs > 0:
-            status = "WARNING"
+            status = "FAIL"
 
         return {
             "status": status,

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rank_bm25 import BM25Okapi
 
+from app.retrieval.filters import matches_retrieval_filters
 from app.retrieval.schemas import RetrievalResult
 
 
@@ -50,17 +51,12 @@ class BM25Retriever:
 
                     item = json.loads(line)
 
-                    company = str(item.get("company") or "").lower()
-                    year = str(item.get("year") or "")
-
-                    if companies:
-                        if not any(c.lower() in company for c in companies):
-                            continue
-
-                    if years:
-                        if year not in years:
-                            continue
-
+                    if not matches_retrieval_filters(
+                        item,
+                        companies=companies,
+                        years=years,
+                    ):
+                        continue
                     chunks.append(item)
 
         return chunks
