@@ -1,43 +1,32 @@
 from __future__ import annotations
 
-import unicodedata
 from pathlib import Path
 
 import yaml
 
-from app.ingest.utils import normalize_text
+from app.core.universe import canonical_company, normalize_company_text
 
 
 def normalize_company(value: str | None) -> str:
-    text = normalize_text(str(value or "")).lower()
-    text = unicodedata.normalize("NFD", text)
-    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
-    return text
+    return normalize_company_text(value)
 
 
 def company_aliases(value: str) -> set[str]:
-    normalized = normalize_company(value)
+    canonical = canonical_company(value, _load_universe())
+    if canonical:
+        return {canonical}
+    return {normalize_company(value)}
+
+
+def _load_universe() -> dict:
     universe_path = Path("config/universe.yaml")
     if not universe_path.is_file():
-        return {normalized}
+        return {"companies": []}
     try:
         data = yaml.safe_load(universe_path.read_text(encoding="utf-8")) or {}
-        for company in data.get("companies", []):
-            aliases = [
-                company.get("canonical_name"),
-                company.get("short_name"),
-                *company.get("aliases", []),
-            ]
-            normalized_aliases = {
-                normalize_company(alias)
-                for alias in aliases
-                if alias
-            }
-            if normalized in normalized_aliases:
-                return normalized_aliases
+        return data if isinstance(data, dict) else {"companies": []}
     except (OSError, yaml.YAMLError):
-        pass
-    return {normalized}
+        return {"companies": []}
 
 
 def matches_retrieval_filters(
@@ -50,13 +39,12 @@ def matches_retrieval_filters(
     year = str(record.get("year") or "")
 
     if companies:
-        accepted_aliases: set[str] = set()
+        universe = _load_universe()
+        accepted: set[str] = set()
         for value in companies:
-            accepted_aliases.update(company_aliases(value))
-        if not any(
-            name and name in company
-            for name in accepted_aliases
-        ):
+            accepted.add(canonical_company(value, universe) or f"unknown:{normalize_company(value)}")
+        document_identity = canonical_company(record.get("company"), universe) or f"unknown:{company}"
+        if document_identity not in accepted:
             return False
     if years:
         accepted_years = {str(value) for value in years}

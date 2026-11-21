@@ -21,6 +21,17 @@ def test_recursive_split_preserves_text_and_limit():
     assert "".join(chunks) != ""
 
 
+def test_recursive_split_rejects_invalid_parameters_and_infinite_overlap():
+    text = "A" * 1000
+    assert all(len(chunk) <= 300 for chunk in recursive_split_text(text, 300, 50))
+    try:
+        recursive_split_text(text, 300, 300)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("chunk_overlap equal to chunk_size must fail")
+
+
 def test_artifact_cache_rejects_modified_source(tmp_path):
     source = tmp_path / "source.txt"
     artifact = tmp_path / "artifact.txt"

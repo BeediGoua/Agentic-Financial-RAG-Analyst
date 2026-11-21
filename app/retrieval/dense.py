@@ -11,6 +11,7 @@ except ImportError:
     SentenceTransformer = None
 
 from app.embeddings.models import get_model_config
+from app.core.artifact_cache import validate_faiss_artifact
 from app.retrieval.filters import matches_retrieval_filters
 from app.retrieval.schemas import RetrievalResult
 
@@ -147,12 +148,36 @@ class DenseRetriever:
     ) -> list[RetrievalResult]:
         if top_k <= 0:
             return []
+        config = get_model_config(model_key)
+        # The source embedding file is represented by source_sha256 in the manifest.
+        # Validate the pair and manifest independently of the source path here.
         try:
             index = faiss.read_index(str(index_path))
         except Exception as exc:
             raise ValueError(f"Unable to read FAISS index {index_path}: {exc}") from exc
         metadata = self.load_metadata(metadata_path)
-        config = get_model_config(model_key)
+        valid, _, _ = validate_faiss_artifact(
+            index_path,
+            metadata_path,
+            expected_fingerprint={
+                "schema_version": 1,
+                "stage": "faiss_index",
+                "params": {
+                    "strategy": strategy,
+                    "model": model_key,
+                    "model_revision": config["revision"],
+                },
+            },
+            expected_dimension=int(config["dimension"]),
+            expected_strategy=strategy,
+            expected_model=model_key,
+            expected_revision=str(config["revision"]),
+        )
+        if not valid:
+            raise ValueError(
+                f"Rejected invalid or mismatched FAISS artifact pair: "
+                f"{index_path.parent}"
+            )
         self.validate_index_metadata(
             index,
             metadata,

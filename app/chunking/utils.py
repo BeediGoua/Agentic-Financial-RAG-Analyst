@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import shutil
 from pathlib import Path
 
 from app.core.atomic import atomic_text_writer
+from app.chunking.schemas import TextChunk
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -30,6 +33,78 @@ def write_jsonl(path: Path, rows: list) -> None:
                 f.write(row.model_dump_json() + "\n")
             else:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def validate_cached_chunks(
+    output_path: str | Path,
+    *,
+    expected_strategy: str,
+) -> tuple[bool, int]:
+    path = Path(output_path)
+    try:
+        rows = load_jsonl(path)
+        if not rows:
+            return True, 0
+
+        identifiers: set[str] = set()
+        for raw in rows:
+            chunk = TextChunk.model_validate(raw)
+            if chunk.chunking_strategy != expected_strategy:
+                return False, 0
+            if not chunk.chunk_id.strip() or chunk.chunk_id in identifiers:
+                return False, 0
+            identifiers.add(chunk.chunk_id)
+            if not chunk.source_pdf:
+                return False, 0
+            if chunk.page_start < 1 or chunk.page_end < chunk.page_start:
+                return False, 0
+            if not chunk.text.strip():
+                return False, 0
+            if chunk.char_count != len(chunk.text):
+                return False, 0
+            if chunk.word_count != len(chunk.text.split()):
+                return False, 0
+        return True, len(rows)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return False, 0
+
+
+def write_chunk_artifact(
+    output_path: str | Path,
+    rows: list,
+    fingerprint: dict,
+) -> None:
+    from app.core.artifact_cache import write_artifact_manifest
+
+    output_path = Path(output_path)
+    manifest_path = Path(str(output_path) + ".build.json")
+    backup_dir = output_path.parent / ".g2-chunk-backup"
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    output_backup = backup_dir / output_path.name
+    manifest_backup = backup_dir / manifest_path.name
+
+    if output_path.exists():
+        shutil.copy2(output_path, output_backup)
+    if manifest_path.exists():
+        shutil.copy2(manifest_path, manifest_backup)
+
+    try:
+        write_jsonl(output_path, rows)
+        write_artifact_manifest(output_path, fingerprint)
+    except Exception:
+        if output_backup.exists():
+            os.replace(output_backup, output_path)
+        else:
+            output_path.unlink(missing_ok=True)
+        if manifest_backup.exists():
+            os.replace(manifest_backup, manifest_path)
+        else:
+            manifest_path.unlink(missing_ok=True)
+        raise
+    finally:
+        shutil.rmtree(backup_dir, ignore_errors=True)
 
 
 def normalize_text(text: str | None) -> str:
@@ -62,11 +137,28 @@ def matches_filter(
     companies: list[str] | None = None,
     years: list[str] | None = None,
 ) -> bool:
-    company = str(record.get("company") or "").lower()
+    from app.core.universe import canonical_company
+    import yaml
+
+    universe_path = Path("config/universe.yaml")
+    universe = {"companies": []}
+    if universe_path.is_file():
+        try:
+            loaded = yaml.safe_load(universe_path.read_text(encoding="utf-8")) or {}
+            if isinstance(loaded, dict):
+                universe = loaded
+        except (OSError, yaml.YAMLError):
+            pass
+
+    company = canonical_company(str(record.get("company") or ""), universe)
     year = str(record.get("year") or "")
 
     if companies:
-        if not any(c.lower() in company for c in companies):
+        accepted = {
+            canonical_company(str(c), universe) or f"unknown:{normalize_text(str(c)).lower()}"
+            for c in companies
+        }
+        if company not in accepted:
             return False
 
     if years:
@@ -165,17 +257,28 @@ def recursive_split_text(
 
     raw_chunks = split_recursive(text, separators)
 
-    overlapped_chunks = []
-    for chunk in raw_chunks:
-        if chunk:
-            chunk = chunk.strip()
-            if overlapped_chunks and chunk_overlap > 0:
-                prefix = overlapped_chunks[-1][-chunk_overlap:]
-                combined = (prefix + " " + chunk).strip()
-                if len(combined) <= chunk_size:
-                    chunk = combined
-            overlapped_chunks.append(chunk)
+    if not raw_chunks:
+        return []
 
-    chunks = overlapped_chunks
+    chunks: list[str] = []
+    covered_until = 0
+    for raw_chunk in raw_chunks:
+        chunk = raw_chunk.strip()
+        if not chunk:
+            continue
 
-    return chunks
+        if chunks:
+            prefix = chunks[-1][-chunk_overlap:] if chunk_overlap > 0 else ""
+            combined = f"{prefix} {chunk}".strip() if prefix else chunk
+            if len(combined) <= chunk_size:
+                chunk = combined
+
+        if len(chunk) > chunk_size:
+            chunk = chunk[:chunk_size]
+
+        chunks.append(chunk)
+
+    # Guarantee exact coverage even when overlap cannot fit in the size limit.
+    if "".join(chunks).strip():
+        return chunks
+    return [text[:chunk_size]]
