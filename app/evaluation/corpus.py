@@ -30,11 +30,55 @@ def build_corpus_manifest(
     faiss_manifests: Iterable[Path] = (),
     embedding_models: Iterable[str] = (),
     strategies: Iterable[str] = (),
+    document_metadata: Iterable[dict] = (),
 ) -> dict:
     document_paths = sorted({Path(path) for path in documents if Path(path).is_file()})
     document_hashes = _hash_manifest_files(document_paths)
-    chunk_paths = [Path(path) for path in chunk_manifests]
-    faiss_paths = [Path(path) for path in faiss_manifests]
+    records_by_hash: dict[str, dict] = {}
+    for record in document_metadata:
+        if not isinstance(record, dict):
+            continue
+        sha = str(record.get("document_sha256") or "").lower()
+        if len(sha) == 64:
+            records_by_hash[sha] = dict(record)
+    for path in document_paths:
+        sha = sha256_file(path)
+        records_by_hash.setdefault(sha, {
+            "source_pdf": str(path),
+            "document_sha256": sha,
+        })
+    chunk_paths = sorted({
+        Path(path)
+        for path in chunk_manifests
+        if Path(path).is_file()
+    })
+    faiss_paths = sorted({
+        Path(path)
+        for path in faiss_manifests
+        if Path(path).is_file()
+    })
+    chunks_count = 0
+    for path in chunk_paths:
+        if path.suffix == ".jsonl":
+            with path.open("r", encoding="utf-8") as stream:
+                chunks_count += sum(1 for line in stream if line.strip())
+        elif path.is_file():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(payload, list):
+                    chunks_count += len(payload)
+            except (json.JSONDecodeError, OSError):
+                pass
+    vectors_count = 0
+    for path in faiss_paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                vectors_count += int(payload.get("ntotal") or payload.get("vectors_count") or payload.get("count") or 0)
+            elif isinstance(payload, list):
+                vectors_count += len(payload)
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
     identity = json.dumps(
         {
             "documents": document_hashes,
@@ -51,8 +95,12 @@ def build_corpus_manifest(
         "snapshot_id": hashlib.sha256(identity).hexdigest(),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "documents_count": len(document_paths),
-        "chunks_count": len(chunk_paths),
+        "chunk_files_count": len(chunk_paths),
+        "chunks_count": chunks_count,
+        "faiss_indexes_count": len(faiss_paths),
+        "vectors_count": vectors_count,
         "document_hashes": document_hashes,
+        "document_records": [records_by_hash[sha] for sha in sorted(records_by_hash)],
         "chunk_manifest_hashes": _hash_manifest_files(chunk_paths),
         "faiss_manifest_hashes": _hash_manifest_files(faiss_paths),
         "embedding_models": sorted(set(embedding_models)),

@@ -1,6 +1,30 @@
 from __future__ import annotations
 
 import random
+from collections import defaultdict
+
+
+def align_results(rows_a: list[dict], rows_b: list[dict], *, metric: str) -> tuple[list[dict], list[dict]]:
+    def index(rows: list[dict]) -> dict[tuple[str, str, str], dict]:
+        result = {}
+        for row in rows:
+            key = (
+                str(row.get("question_id")),
+                str(row.get("split")),
+                str(row.get("corpus_snapshot")),
+            )
+            value = row.get("metrics", {}).get(metric)
+            if value is not None:
+                result[key] = row
+        return result
+    index_a = index(rows_a)
+    index_b = index(rows_b)
+    common = sorted(set(index_a).intersection(index_b))
+    if not common:
+        raise ValueError("No aligned question/split/corpus_snapshot samples")
+    aligned_a = [index_a[key] for key in common]
+    aligned_b = [index_b[key] for key in common]
+    return aligned_a, aligned_b
 
 
 def paired_bootstrap(

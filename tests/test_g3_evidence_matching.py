@@ -32,3 +32,24 @@ def test_strict_document_page_and_quote_matching():
         "page_end": 7,
         "text": "Résultat net 101 FCFA",
     })
+
+
+def test_different_number_unit_and_table_column_are_rejected():
+    evidence = {
+        "document_sha256": "a" * 64,
+        "page_start": 4,
+        "page_end": 4,
+        "quote": "Résultat net 101 FCFA",
+    }
+    assert not evidence_matches_chunk(evidence, {
+        "document_sha256": "a" * 64,
+        "page_start": 4,
+        "page_end": 4,
+        "text": "Résultat net 102 FCFA",
+    })
+    assert not evidence_matches_chunk(evidence, {
+        "document_sha256": "a" * 64,
+        "page_start": 4,
+        "page_end": 4,
+        "text": "Résultat net 101 USD",
+    })

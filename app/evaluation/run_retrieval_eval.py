@@ -4,10 +4,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import yaml
 
-from app.evaluation.corpus import build_corpus_manifest
+from app.evaluation.corpus import build_corpus_manifest, sha256_file
 from app.evaluation.qrels import load_questions
 from app.evaluation.reporting import (
     write_csv_atomic,
@@ -16,6 +17,9 @@ from app.evaluation.reporting import (
 )
 from app.evaluation.runner import BenchmarkRunner, FixtureRetriever
 from app.evaluation.schemas import GoldQuestion
+from app.retrieval.bm25 import BM25Retriever
+from app.retrieval.dense import DenseRetriever
+from app.retrieval.hybrid import HybridRetriever
 
 
 def load_config(path: str | None) -> dict:
@@ -32,6 +36,29 @@ def load_config(path: str | None) -> dict:
     if not config_path.is_file():
         raise FileNotFoundError(f"Configuration absent: {config_path}")
     return yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+
+
+def validate_config(config: dict) -> dict:
+    benchmark = config.get("benchmark")
+    retrieval = config.get("retrieval")
+    if not isinstance(benchmark, dict) or not isinstance(retrieval, dict):
+        raise ValueError("Invalid G3 config: benchmark and retrieval sections are required")
+    k_values = benchmark.get("k_values")
+    splits = benchmark.get("splits")
+    strategies = retrieval.get("strategies")
+    methods = retrieval.get("methods")
+    models = retrieval.get("embedding_models")
+    if not isinstance(k_values, list) or not k_values or any(type(k) is not int or k < 1 for k in k_values):
+        raise ValueError("Invalid k_values")
+    if not isinstance(splits, list) or not set(splits).issubset({"dev", "test"}):
+        raise ValueError("Invalid benchmark splits")
+    if not isinstance(strategies, list) or not strategies:
+        raise ValueError("Invalid retrieval strategies")
+    if not isinstance(methods, list) or not set(methods).issubset({"bm25", "dense", "hybrid"}):
+        raise ValueError("Invalid retrieval methods")
+    if not isinstance(models, list) or not models:
+        raise ValueError("Invalid embedding_models")
+    return config
 
 
 def build_fixture_questions() -> list[GoldQuestion]:
@@ -76,16 +103,20 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--allow-model-download", action="store_true")
+    parser.add_argument("--chunks-dir", default="data/chunks")
+    parser.add_argument("--vector-db-dir", default="data/vector_db/faiss")
     args = parser.parse_args()
 
     try:
-        config = load_config(args.config)
+        config = validate_config(load_config(args.config))
         output_dir = Path(args.output_dir)
         if args.mode == "fixtures":
             questions = build_fixture_questions()
             ranked = {
                 questions[0].question: [
-                    {"chunk_id": "SYNTH-E1", "evidence_id": "SYNTH-E1", "rank": 1, "score": 1.0,
+                    {"chunk_id": "recursive_fixed_abc123", "rank": 1, "score": 1.0,
+                     "document_sha256": "a" * 64, "source_pdf": "synthetic_report.pdf",
+                     "page_start": 1, "page_end": 1,
                      "text": "Le résultat net synthétique vaut 101 FCFA."}
                 ]
             }
@@ -108,17 +139,17 @@ def main() -> int:
             )
             report = runner.run(
                 questions,
-                strategies=["recursive_fixed"],
-                models=["mini_lm_multilingual"],
-                methods=["bm25", "dense", "hybrid"],
-                top_k=args.top_k,
+                strategies=config["retrieval"]["strategies"],
+                models=config["retrieval"]["embedding_models"],
+                methods=config["retrieval"]["methods"],
+                top_k=max(config["benchmark"]["k_values"]),
+                relevant_threshold=int(config["benchmark"].get("relevance_threshold", 2)),
+                k_values=config["benchmark"]["k_values"],
             )
             report["synthetic"] = True
             report["mode"] = "fixtures"
         else:
             missing: list[str] = []
-            if not args.allow_model_download:
-                missing.append("real model downloads not requested")
             question_path = Path(args.questions)
             manifest_path = Path(args.corpus_manifest)
             if not question_path.is_file():
@@ -131,34 +162,78 @@ def main() -> int:
             if not manifest_path.is_file():
                 missing.append(f"missing corpus manifest: {manifest_path}")
             else:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError as exc:
+                    missing.append(f"invalid corpus manifest: {exc}")
+                    manifest = {}
                 if manifest.get("documents_count", 0) <= 0:
                     missing.append("corpus manifest contains no documents")
+                if manifest.get("status") == "template_only":
+                    missing.append("corpus snapshot is template_only")
+                document_hashes = manifest.get("document_hashes", [])
+                if document_hashes and any(len(str(value)) != 64 for value in document_hashes):
+                    missing.append("corpus manifest contains invalid document SHA-256")
+                for record in manifest.get("document_records", []):
+                    source_pdf = record.get("source_pdf")
+                    expected_sha = str(record.get("document_sha256") or "").lower()
+                    if not source_pdf or not Path(source_pdf).is_file():
+                        missing.append(f"missing document artifact: {source_pdf}")
+                        continue
+                    actual_sha = sha256_file(source_pdf)
+                    if not expected_sha or actual_sha != expected_sha:
+                        missing.append(f"document SHA-256 mismatch: {source_pdf}")
             if missing:
                 report = {
                     "status": "REAL_BENCHMARK_NOT_READY",
                     "missing": missing,
                     "synthetic": False,
+                    "run_id": uuid4().hex,
                 }
                 write_json_atomic(output_dir / "summary.json", report)
                 write_markdown(output_dir / "report.md", report)
                 print(json.dumps(report, indent=2, ensure_ascii=False))
                 return 2
-            raise RuntimeError(
-                "The real benchmark runner requires verified corpus artifacts "
-                "and real retriever adapters; no fabricated execution was performed"
+            bm25 = BM25Retriever(chunks_dir=args.chunks_dir)
+            dense = DenseRetriever(
+                vector_db_dir=args.vector_db_dir,
+                allow_model_download=args.allow_model_download,
             )
+            hybrid = HybridRetriever(
+                dense_retriever=dense,
+                bm25_retriever=bm25,
+            )
+            retrievers = {"bm25": bm25, "dense": dense, "hybrid": hybrid}
+            runner = BenchmarkRunner(
+                retrievers=retrievers,
+                corpus_snapshot=manifest,
+                seed=args.seed,
+                synthetic=False,
+            )
+            report = runner.run(
+                questions,
+                strategies=config["retrieval"]["strategies"],
+                models=config["retrieval"]["embedding_models"],
+                methods=config["retrieval"]["methods"],
+                top_k=max(config["benchmark"]["k_values"]),
+                relevant_threshold=int(config["benchmark"].get("relevance_threshold", 2)),
+                k_values=config["benchmark"]["k_values"],
+            )
+            report["synthetic"] = False
+            report["mode"] = "real"
+            report["allow_model_download"] = bool(args.allow_model_download)
 
-        write_json_atomic(output_dir / "summary.json", report)
+        run_output_dir = output_dir / str(report["run_id"])
+        write_json_atomic(run_output_dir / "summary.json", report)
         write_csv_atomic(
-            output_dir / "per_query.csv",
+            run_output_dir / "per_query.csv",
             report.get("per_query", []),
         )
-        write_markdown(output_dir / "report.md", report)
+        write_markdown(run_output_dir / "report.md", report)
         print(json.dumps({
             "status": "success",
             "run_id": report["run_id"],
-            "output_dir": str(output_dir),
+            "output_dir": str(run_output_dir),
         }, indent=2))
         return 0
     except Exception as exc:

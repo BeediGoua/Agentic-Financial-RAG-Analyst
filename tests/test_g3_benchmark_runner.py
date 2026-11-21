@@ -1,6 +1,8 @@
 from app.evaluation.corpus import build_corpus_manifest
 from app.evaluation.runner import BenchmarkRunner, FixtureRetriever
 from app.evaluation.schemas import GoldQuestion
+from app.evaluation.run_retrieval_eval import main
+import sys
 
 
 def fixture_question():
@@ -31,10 +33,13 @@ def fixture_question():
 def test_fixture_runner_and_technical_status(tmp_path):
     question = fixture_question()
     ranked = {"Quel est le montant synthétique?": [{
-        "chunk_id": "E1",
+        "chunk_id": "recursive_fixed_abc123",
         "evidence_id": "E1",
         "rank": 1,
         "score": 1.0,
+        "document_sha256": "a" * 64,
+        "page_start": 1,
+        "page_end": 1,
         "text": "Montant synthétique 101 FCFA",
     }]}
     retrievers = {name: FixtureRetriever(ranked) for name in ("bm25", "dense", "hybrid")}
@@ -51,3 +56,41 @@ def test_fixture_runner_and_technical_status(tmp_path):
     assert len(report["per_query"]) == 3
     assert all(row["status"] == "success" for row in report["per_query"])
     assert all(row["metrics"]["recall"] == 1.0 for row in report["per_query"])
+
+
+def test_empty_valid_search_has_zero_metrics():
+    question = fixture_question()
+    retriever = FixtureRetriever({"Quel est le montant synthétique?": []})
+    snapshot = build_corpus_manifest(documents=[], embedding_models=["fake"], strategies=["recursive_fixed"])
+    runner = BenchmarkRunner(
+        retrievers={name: retriever for name in ("bm25", "dense", "hybrid")},
+        corpus_snapshot=snapshot,
+    )
+    report = runner.run(
+        [question],
+        strategies=["recursive_fixed"],
+        models=["mini_lm_multilingual"],
+        methods=["bm25"],
+        top_k=5,
+    )
+    row = report["per_query"][0]
+    assert row["status"] == "empty"
+    assert row["metrics"]["hit"] == 0.0
+    assert row["metrics"]["recall"] == 0.0
+    assert row["metrics"]["precision"] == 0.0
+    assert row["metrics"]["ndcg"] == 0.0
+
+
+def test_real_mode_without_corpus_is_not_ready(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_retrieval_eval",
+            "--mode",
+            "real",
+            "--output-dir",
+            str(tmp_path),
+        ],
+    )
+    assert main() == 2
