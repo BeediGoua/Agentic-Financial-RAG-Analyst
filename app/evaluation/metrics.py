@@ -133,7 +133,7 @@ def evaluate_ranked_results(
         if newly_relevant and first_relevant_rank is None:
             first_relevant_rank = rank
         covered.update(newly_relevant)
-        all_covered.update(matched_groups.intersection(evidence_groups))
+        all_covered.update(matched_groups.intersection(relevant_groups))
         if newly_relevant:
             relevant_chunk_count += 1
         observed_grades.append(
@@ -157,8 +157,8 @@ def evaluate_ranked_results(
         "judged_fraction": judged_count / top_count if top_count else 0.0,
         "unjudged_count": unjudged,
         "provisional": bool(unjudged),
-        "evidence_coverage": len(all_covered) / len(evidence_groups) if evidence_groups else 0.0,
-        "all_evidence": float(bool(evidence_groups) and len(all_covered) == len(evidence_groups)),
+        "evidence_coverage": len(all_covered) / len(relevant_groups) if relevant_groups else 0.0,
+        "all_evidence": float(bool(relevant_groups) and len(all_covered) == len(relevant_groups)),
         "metric_units": {
             "hit": "ranked_chunk",
             "recall": "indispensable_evidence_group",
@@ -173,10 +173,23 @@ def evaluate_ranked_results(
 def evidence_coverage(
     ranked_ids: list[str],
     evidence_groups: dict[str, set[str]],
+    qrels: dict[str, int] | None = None,
+    relevant_threshold: int = 2,
 ) -> dict:
     retrieved = set(ranked_ids)
-    covered = sum(bool(retrieved.intersection(alternatives)) for alternatives in evidence_groups.values())
-    total = len(evidence_groups)
+    relevant_groups = evidence_groups
+    if qrels is not None:
+        relevant_groups = {
+            group_id: alternatives
+            for group_id, alternatives in evidence_groups.items()
+            if max((qrels.get(evidence_id, 0) for evidence_id in alternatives), default=0)
+            >= relevant_threshold
+        }
+    covered = sum(
+        bool(retrieved.intersection(alternatives))
+        for alternatives in relevant_groups.values()
+    )
+    total = len(relevant_groups)
     if total == 0:
         return {"evidence_coverage": 0.0, "all_evidence": 0.0}
     coverage = covered / total

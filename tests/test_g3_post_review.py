@@ -6,7 +6,7 @@ from app.chunking.schemas import TextChunk
 from app.core.document_hash import _sha256_cached
 from app.embeddings.schemas import EmbeddingRecord
 from app.evaluation.corpus import build_document_registry, normalize_document_path, sha256_file
-from app.evaluation.metrics import evaluate_ranked_results
+from app.evaluation.metrics import evaluate_ranked_results, evidence_coverage
 from app.vector_db.schemas import VectorMetadata
 
 
@@ -97,6 +97,34 @@ def test_grade_zero_chunk_is_explicitly_judged():
     assert metrics["judged_count"] == 1
     assert metrics["judged_fraction"] == 0.5
     assert metrics["unjudged_count"] == 1
+
+
+def test_negative_grade_group_is_not_indispensable_evidence():
+    results = [
+        make_enriched("C1", ["E1"], ["G1"]),
+    ]
+    evidence_groups = {
+        "G0": {"E0"},
+        "G1": {"E1"},
+    }
+    qrels = {"E0": 0, "E1": 3}
+
+    metrics = evaluate_ranked_results(
+        results,
+        evidence_groups,
+        qrels,
+        k=5,
+    )
+    coverage = evidence_coverage(
+        ["E1"],
+        evidence_groups,
+        qrels=qrels,
+    )
+
+    assert metrics["recall"] == 1.0
+    assert metrics["evidence_coverage"] == 1.0
+    assert metrics["all_evidence"] == 1.0
+    assert coverage == {"evidence_coverage": 1.0, "all_evidence": 1.0}
 
 
 def test_document_registry_and_schema_hash_propagation(tmp_path):
