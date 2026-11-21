@@ -39,7 +39,9 @@ class BM25Retriever:
         strategy_dir = self.chunks_dir / strategy
 
         if not strategy_dir.exists():
-            return []
+            raise FileNotFoundError(
+                f"missing_corpus: chunk strategy directory absent: {strategy_dir}"
+            )
 
         chunks = []
 

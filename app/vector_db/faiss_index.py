@@ -13,6 +13,7 @@ from tqdm import tqdm
 from app.core.artifact_cache import (
     build_fingerprint,
     sha256_file,
+    validate_faiss_artifact,
     write_artifact_manifest,
 )
 from app.core.atomic import atomic_text_writer
@@ -179,23 +180,29 @@ class FaissIndexBuilder:
         fingerprint = build_fingerprint(
             source_path=embedding_file,
             stage="faiss_index",
-            params={"strategy": strategy, "model": model},
+            params={
+                "strategy": strategy,
+                "model": model,
+                "model_revision": get_model_config(model)["revision"],
+            },
         )
+        fingerprint["model_revision"] = get_model_config(model)["revision"]
 
         try:
             if not force:
                 manifest_path = Path(str(index_path) + ".build.json")
                 if index_path.exists() and metadata_path.exists() and manifest_path.exists():
-                    import json as json_module
-                    manifest = json_module.loads(
-                        manifest_path.read_text(encoding="utf-8")
+                    config = get_model_config(model)
+                    valid, vectors_count, vector_dimension = validate_faiss_artifact(
+                        index_path,
+                        metadata_path,
+                        expected_fingerprint=fingerprint,
+                        expected_dimension=int(config["dimension"]),
+                        expected_strategy=strategy,
+                        expected_model=model,
+                        expected_revision=str(config["revision"]),
                     )
-                    if (
-                        manifest.get("source_sha256") == fingerprint["source_sha256"]
-                        and manifest.get("params") == fingerprint["params"]
-                        and manifest.get("metadata_sha256") == sha256_file(metadata_path)
-                        and manifest.get("metadata_size") == metadata_path.stat().st_size
-                    ):
+                    if valid:
                         return {
                             "status": "already_exists",
                             "strategy": strategy,
@@ -203,6 +210,8 @@ class FaissIndexBuilder:
                             "input_path": str(embedding_file),
                             "index_path": str(index_path),
                             "metadata_path": str(metadata_path),
+                            "vectors_count": vectors_count,
+                            "vector_dimension": vector_dimension,
                         }
 
             rows = self.load_jsonl(embedding_file)
@@ -295,13 +304,20 @@ class FaissIndexBuilder:
             index = faiss.IndexFlatIP(vector_dimension)
             index.add(matrix)
 
-            backup_dir = Path(tempfile.mkdtemp(prefix=".g2-faiss-backup-"))
+            backup_dir = index_path.parent / ".g2-faiss-backup"
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir)
+            backup_dir.mkdir(parents=True, exist_ok=True)
             index_backup = backup_dir / "index.faiss"
             metadata_backup = backup_dir / "metadata.jsonl"
+            manifest_backup = backup_dir / "index.faiss.build.json"
             if index_path.exists():
                 shutil.copy2(index_path, index_backup)
             if metadata_path.exists():
                 shutil.copy2(metadata_path, metadata_backup)
+            manifest_path = Path(str(index_path) + ".build.json")
+            if manifest_path.exists():
+                shutil.copy2(manifest_path, manifest_backup)
             try:
                 write_faiss_safely(index, index_path)
                 with atomic_text_writer(metadata_path) as f:
@@ -328,6 +344,10 @@ class FaissIndexBuilder:
                     os.replace(metadata_backup, metadata_path)
                 else:
                     metadata_path.unlink(missing_ok=True)
+                if manifest_backup.exists():
+                    os.replace(manifest_backup, manifest_path)
+                else:
+                    manifest_path.unlink(missing_ok=True)
                 raise
             finally:
                 shutil.rmtree(backup_dir, ignore_errors=True)

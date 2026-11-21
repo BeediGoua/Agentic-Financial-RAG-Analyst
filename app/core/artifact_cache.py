@@ -72,3 +72,65 @@ def artifact_cache_valid(
         return True
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return False
+
+
+def validate_faiss_artifact(
+    index_path: str | Path,
+    metadata_path: str | Path,
+    *,
+    expected_fingerprint: dict[str, Any],
+    expected_dimension: int,
+    expected_strategy: str,
+    expected_model: str,
+    expected_revision: str,
+) -> tuple[bool, int, int]:
+    import faiss
+
+    index_path = Path(index_path)
+    metadata_path = Path(metadata_path)
+    manifest_path = metadata_path_for(index_path)
+
+    try:
+        if not index_path.is_file() or not metadata_path.is_file() or not manifest_path.is_file():
+            return False, 0, 0
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for key, expected in expected_fingerprint.items():
+            if manifest.get(key) != expected:
+                return False, 0, 0
+        if manifest.get("artifact_sha256") != sha256_file(index_path):
+            return False, 0, 0
+        if manifest.get("artifact_size") != index_path.stat().st_size:
+            return False, 0, 0
+        if manifest.get("metadata_sha256") != sha256_file(metadata_path):
+            return False, 0, 0
+        if manifest.get("metadata_size") != metadata_path.stat().st_size:
+            return False, 0, 0
+        if manifest.get("model_revision") != expected_revision:
+            return False, 0, 0
+
+        index = faiss.read_index(str(index_path))
+        rows: list[dict] = []
+        with metadata_path.open("r", encoding="utf-8") as stream:
+            for line in stream:
+                if line.strip():
+                    rows.append(json.loads(line))
+
+        if index.ntotal != len(rows):
+            return False, 0, 0
+        if index.ntotal <= 0 or index.d != expected_dimension:
+            return False, 0, 0
+
+        for position, row in enumerate(rows):
+            if row.get("vector_id") != position:
+                return False, 0, 0
+            if row.get("chunking_strategy") != expected_strategy:
+                return False, 0, 0
+            if row.get("embedding_model") != expected_model:
+                return False, 0, 0
+            if not str(row.get("text") or "").strip():
+                return False, 0, 0
+            if not row.get("source_pdf"):
+                return False, 0, 0
+        return True, index.ntotal, index.d
+    except (OSError, ValueError, TypeError, json.JSONDecodeError, RuntimeError):
+        return False, 0, 0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from pathlib import Path
 
 from app.retrieval.bm25 import BM25Retriever
@@ -37,14 +38,32 @@ class RetrievalSupervisor:
 
     def save_report(self, report: dict) -> Path:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        path = self.output_dir / f"retrieval_run_{timestamp}.json"
-
-        path.write_text(
+        run_id = report.get("run_id") or uuid.uuid4().hex
+        report["run_id"] = run_id
+        path = self.output_dir / f"retrieval_run_{timestamp}_{run_id}.json"
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(
             json.dumps(report, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        temporary.replace(path)
 
         return path
+
+    def _status_for_error(self, exc: Exception) -> tuple[str, str]:
+        message = str(exc)
+        if isinstance(exc, FileNotFoundError) or "missing_corpus" in message:
+            return "missing_corpus", message
+        if (
+            "invalid_index" in message
+            or "Unable to read FAISS" in message
+            or "Rejected invalid" in message
+            or "mismatched FAISS" in message
+        ):
+            return "invalid_index", message
+        if "model unavailable" in message.lower() or "sentence_transformer" in message.lower():
+            return "model_unavailable", message
+        return "error", message
 
     def run_one(
         self,
@@ -63,6 +82,8 @@ class RetrievalSupervisor:
                     strategy=strategy,
                     model_key=model_key,
                     top_k=top_k,
+                    companies=companies,
+                    years=years,
                 )
 
             elif method == "bm25":
@@ -99,8 +120,9 @@ class RetrievalSupervisor:
             }
 
         except Exception as e:
+            status, error = self._status_for_error(e)
             return {
-                "status": "error",
+                "status": status,
                 "query": query,
                 "method": method,
                 "strategy": strategy,

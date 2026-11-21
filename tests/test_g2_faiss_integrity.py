@@ -108,3 +108,32 @@ def test_nan_duplicate_and_dimension_errors(tmp_path):
     for rows in cases:
         write_jsonl(embedding_file, rows)
         assert builder.build_index_for_file(embedding_file, force=True)["status"] == "error"
+
+
+def test_cache_hit_reports_real_counts_and_rejects_index_byte_change(tmp_path):
+    source = tmp_path / "embeddings"
+    embedding_file = (
+        source / "recursive_fixed" / "mini_lm_multilingual"
+        / "brvm" / "cache.embeddings.jsonl"
+    )
+    write_jsonl(
+        embedding_file,
+        [
+            make_record("a", [1.0] + [0.0] * 383),
+            make_record("b", [0.0, 1.0] + [0.0] * 382),
+        ],
+    )
+    builder = FaissIndexBuilder(str(source), str(tmp_path / "faiss"))
+    first = builder.build_index_for_file(embedding_file)
+    second = builder.build_index_for_file(embedding_file)
+    assert first["status"] == "success"
+    assert second["status"] == "already_exists"
+    assert second["vectors_count"] == 2
+    assert second["vector_dimension"] == 384
+
+    index_path, _ = builder.build_output_paths(embedding_file)
+    content = bytearray(index_path.read_bytes())
+    content[0] ^= 1
+    index_path.write_bytes(content)
+    rebuilt = builder.build_index_for_file(embedding_file)
+    assert rebuilt["status"] == "success"

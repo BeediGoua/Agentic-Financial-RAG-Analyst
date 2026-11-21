@@ -1,0 +1,9 @@
+{
+  "missing": [
+    "real model downloads not requested",
+    "no verified annotations",
+    "corpus manifest contains no documents"
+  ],
+  "status": "REAL_BENCHMARK_NOT_READY",
+  "synthetic": false
+}

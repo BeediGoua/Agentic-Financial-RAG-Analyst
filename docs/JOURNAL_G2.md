@@ -17,11 +17,16 @@ G2 sécurise la chaîne documentaire après l'ingestion G1. L'objectif est d'emp
 - Ajout de `app/core/artifact_cache.py` pour associer source, SHA-256, stage, paramètres et empreinte de sortie.
 - Les embeddings publient leur manifeste après sortie atomique.
 - Les index publient un manifeste couvrant leur source, leurs paramètres et les empreintes de l'index et des métadonnées.
+- La revue de clôture a ajouté une validation commune des manifestes et du couple index/métadonnées avant réutilisation.
+- Les sept stratégies de chunking vérifient désormais leur source, leurs filtres, leurs paramètres et le contenu JSONL avant `already_exists`.
+- Les artefacts chunking invalides ou tronqués sont reconstruits; une sortie vide est publiée avec un manifeste cohérent.
+- Les publications FAISS restaurent l'index, les métadonnées et le manifeste depuis des sauvegardes du même répertoire en cas d'échec.
 
 ## Retrieval
 
 - Ajout de `app/retrieval/filters.py` et de filtres communs BM25/dense/hybride.
-- Ajout de la canonicalisation des sociétés à partir de `config/universe.yaml`, notamment ORAC/ORANGE CI.
+- Ajout de la correspondance exacte canonique à partir de `config/universe.yaml`: ORAC correspond à ORANGE CI/COTE D'IVOIRE, sans sous-chaîne implicite vers `ORANGE FINANCE SERVICES`.
+- Les anciens index sans manifeste G2 sont rejetés explicitement par le retriever dense.
 - Dense utilise la révision Hugging Face configurée, normalise les requêtes et recherche progressivement jusqu'à trouver les candidats admissibles.
 - Chaque index charge ses métadonnées et échoue explicitement en cas de corruption ou de désalignement.
 - L'hybride transmet les filtres aux deux moteurs, copie les résultats avant modification et utilise une identité composite stratégie/document/chunk.
@@ -38,12 +43,21 @@ Les contrôleurs de chunking, embeddings, FAISS et retrieval retournent désorma
 
 ## Validation
 
-- Suite G2 locale sans réseau : 12 tests passent.
-- Suite complète locale : 134 tests passent.
+- `python3.11 --version` : **Python 3.11.18**.
+- Suite G2 locale sans réseau : **23 tests ciblés passent** sur le chunking, FAISS et les filtres, 3 avertissements de dépréciation.
+- Suite complète locale : **148 tests passent**, 3 avertissements de dépréciation.
+- Compilation Python des dossiers `app` et `tests`: réussie.
+- `git diff --check`: réussi.
+- `pip check`: aucune dépendance cassée.
 - FAISS réel et NumPy sont utilisés dans les tests d'intégrité.
 - Aucun téléchargement ou inférence réelle de modèle Hugging Face n'a été exécuté.
+- Le splitter vérifie les frontières de paragraphes, les longues séquences sans espaces, les petits derniers chunks et les paramètres invalides; les sept stratégies disposent de tests synthétiques d'invalidation du cache.
+- Un couple volontairement mélangé de deux générations FAISS ayant 384 dimensions et le même nombre de vecteurs est rejeté par le retrieval.
+- Les alias `ORAC`, `CIEC` et `SNTS` sont validés par identité canonique; les noms ressemblants ne sont pas acceptés.
 
 ## Limites
 
 La migration automatique des anciens index n'est pas exécutée: les anciens artefacts restent non validés et les nouveaux chemins doivent être reconstruits avec `force=True`.
 G2 ne mesure pas Recall@K, MRR ou nDCG.
+Dans le Codespaces local, `make setup` échoue sur `cuda-bindings==13.5.0` introuvable avec le lockfile résolu.
+`make doctor` reste bloqué en mode strict : Tesseract absent, `opencv-python` absent, `sentence-transformers` absent et `urllib3` 2.8.0 installé au lieu de 2.7.0. `make test` échoue donc sur le même blocage doctor avant pytest.

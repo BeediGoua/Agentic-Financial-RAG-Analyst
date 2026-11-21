@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "NOT_CREATED",
+  "created_at": null,
+  "documents_count": 0,
+  "chunks_count": 0,
+  "document_hashes": [],
+  "chunk_manifest_hashes": [],
+  "faiss_manifest_hashes": [],
+  "embedding_models": [],
+  "strategies": [],
+  "status": "template_only",
+  "note": "No real BRVM corpus snapshot is declared by this template."
+}

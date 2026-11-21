@@ -18,6 +18,37 @@ def normalize_company_text(text: str | None) -> str:
     return " ".join(text.lower().split())
 
 
+def canonical_company(value: str | None, universe: dict) -> str | None:
+    normalized = normalize_company_text(value)
+    if not normalized:
+        return None
+
+    matches: set[str] = set()
+    for entry in universe.get("companies", []):
+        ticker = entry.get("ticker")
+        if not ticker:
+            continue
+        candidates = [
+            ticker,
+            entry.get("canonical_name"),
+            entry.get("short_name"),
+            *(entry.get("aliases") or []),
+        ]
+        normalized_candidates = {
+            normalize_company_text(candidate)
+            for candidate in candidates
+            if candidate
+        }
+        if normalized in normalized_candidates:
+            matches.add(str(ticker).upper())
+
+    if len(matches) > 1:
+        raise ValueError(f"Ambiguous company alias: {value!r}")
+    if matches:
+        return next(iter(matches))
+    return f"unknown:{normalized}"
+
+
 class UniverseManager:
     """
     Référentiel métier des sociétés BRVM.
