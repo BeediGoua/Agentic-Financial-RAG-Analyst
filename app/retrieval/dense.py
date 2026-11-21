@@ -46,6 +46,10 @@ class DenseRetriever:
         return rows
 
     def get_model(self, model_key: str) -> SentenceTransformer:
+        if SentenceTransformer is None:
+            raise RuntimeError(
+                "model_unavailable: sentence_transformers is not installed"
+            )
         if model_key not in self._model_cache:
             config = get_model_config(model_key)
             self._model_cache[model_key] = SentenceTransformer(
@@ -254,6 +258,11 @@ class DenseRetriever:
         if top_k <= 0:
             return []
         pairs = self.get_index_paths(strategy=strategy, model_key=model_key)
+        if not pairs:
+            raise FileNotFoundError(
+                f"missing_corpus: FAISS index absent for strategy={strategy} "
+                f"model={model_key}"
+            )
 
         all_results = []
 

@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import numpy as np
 
-from sentence_transformers import CrossEncoder
+try:
+    from sentence_transformers import CrossEncoder
+except ImportError:
+    CrossEncoder = None
 from tqdm import tqdm
 
 from app.reranking.models import get_reranking_model_config
@@ -31,6 +35,10 @@ class CrossEncoderReranker:
 
         config = get_reranking_model_config(model_key)
         self.model_name = config["model_name"]
+        if CrossEncoder is None:
+            raise RuntimeError(
+                "model_unavailable: sentence_transformers is not installed"
+            )
         self.model = CrossEncoder(self.model_name, revision=config["revision"])
 
     def load_retrieval_run(self, path: Path) -> dict:
@@ -45,16 +53,37 @@ class CrossEncoderReranker:
         if not retrieval_results:
             return []
 
+        chunk_ids = [
+            str(item.get("chunk_id") or "")
+            for item in retrieval_results
+        ]
+        if any(not chunk_id for chunk_id in chunk_ids):
+            raise ValueError("Retrieval candidate missing chunk_id")
+        if len(chunk_ids) != len(set(chunk_ids)):
+            raise ValueError("Duplicate retrieval candidate identifiers")
+
         pairs = [
             (query, str(item.get("text") or ""))
             for item in retrieval_results
         ]
 
-        scores = self.model.predict(
-            pairs,
-            batch_size=self.batch_size,
-            show_progress_bar=False,
-        )
+        scores = np.asarray(
+            self.model.predict(
+                pairs,
+                batch_size=self.batch_size,
+                show_progress_bar=False,
+            ),
+            dtype=np.float64,
+        ).reshape(-1)
+
+        if len(scores) != len(retrieval_results):
+            raise ValueError(
+                "CrossEncoder score count mismatch: "
+                f"{len(scores)} scores for "
+                f"{len(retrieval_results)} candidates"
+            )
+        if not np.isfinite(scores).all():
+            raise ValueError("CrossEncoder returned NaN or infinite scores")
 
         reranked = []
 
@@ -96,8 +125,11 @@ class CrossEncoderReranker:
 
         reranked = sorted(
             reranked,
-            key=lambda x: x.final_score,
-            reverse=True,
+            key=lambda x: (
+                -x.final_score,
+                x.original_rank if x.original_rank is not None else 2**31,
+                x.chunk_id,
+            ),
         )[:top_k]
 
         for rank, item in enumerate(reranked, start=1):
