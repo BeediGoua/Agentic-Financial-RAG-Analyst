@@ -210,19 +210,12 @@ class BenchmarkRunner:
                             coverage = evidence_coverage(
                                 list(dict.fromkeys(matched_ids_at_top)),
                                 evidence_groups,
+                                qrels=qrels,
+                                relevant_threshold=relevant_threshold,
                             )
                             metrics.update(coverage)
                             for k in sorted(set((k_values or [top_k]))):
                                 if k <= 0:
-                                    continue
-                                if len(enriched_ranked) < k:
-                                    for suffix in (
-                                        "hit", "recall", "mrr", "ndcg",
-                                        "evidence_coverage", "all_evidence",
-                                    ):
-                                        metrics[f"{suffix}@{k}"] = None
-                                    metrics[f"candidate_count@{k}"] = len(enriched_ranked)
-                                    metrics[f"candidate_shortfall@{k}"] = k - len(enriched_ranked)
                                     continue
                                 k_metrics = evaluate_ranked_results(
                                     enriched_ranked,
@@ -243,9 +236,13 @@ class BenchmarkRunner:
                                 k_coverage = evidence_coverage(
                                     list(dict.fromkeys(k_matches)),
                                     evidence_groups,
+                                    qrels=qrels,
+                                    relevant_threshold=relevant_threshold,
                                 )
                                 metrics[f"evidence_coverage@{k}"] = k_coverage["evidence_coverage"]
                                 metrics[f"all_evidence@{k}"] = k_coverage["all_evidence"]
+                                metrics[f"candidate_count@{k}"] = len(enriched_ranked)
+                                metrics[f"candidate_shortfall@{k}"] = max(k - len(enriched_ranked), 0)
                         else:
                             technical_errors[status] = technical_errors.get(status, 0) + 1
                         per_query.append(
