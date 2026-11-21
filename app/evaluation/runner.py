@@ -56,6 +56,11 @@ class BenchmarkRunner:
         relevant_threshold: int = 2,
         k_values: list[int] | None = None,
     ) -> dict:
+        k_values = sorted(set(k_values or [top_k]))
+        if any(type(k) is not int or k <= 0 for k in k_values):
+            raise ValueError("Invalid k_values")
+        if max(k_values) > top_k:
+            raise ValueError("Every k_value must be <= top_k")
         per_query: list[dict] = []
         answerable_count = 0
         unanswerable_count = 0
@@ -209,6 +214,15 @@ class BenchmarkRunner:
                             metrics.update(coverage)
                             for k in sorted(set((k_values or [top_k]))):
                                 if k <= 0:
+                                    continue
+                                if len(enriched_ranked) < k:
+                                    for suffix in (
+                                        "hit", "recall", "mrr", "ndcg",
+                                        "evidence_coverage", "all_evidence",
+                                    ):
+                                        metrics[f"{suffix}@{k}"] = None
+                                    metrics[f"candidate_count@{k}"] = len(enriched_ranked)
+                                    metrics[f"candidate_shortfall@{k}"] = k - len(enriched_ranked)
                                     continue
                                 k_metrics = evaluate_ranked_results(
                                     enriched_ranked,

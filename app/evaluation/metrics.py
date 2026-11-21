@@ -52,6 +52,12 @@ def evaluate_ranked_query(
     dcg = dcg_at_k(observed_grades, k)
     ideal_dcg = dcg_at_k(ideal_grades, k)
     unjudged = [identifier for identifier in top if identifier not in qrels]
+    judged_count = len(top) - len(unjudged)
+    grade0_count = sum(
+        1
+        for identifier in top
+        if identifier in qrels and qrels[identifier] == 0
+    )
 
     return {
         "hit": float(bool(relevant_found)),
@@ -63,11 +69,9 @@ def evaluate_ranked_query(
             else 0.0
         ),
         "ndcg": dcg / ideal_dcg if ideal_dcg > 0 else None,
-        "judged_fraction": (
-            (len(top) - len(unjudged)) / len(top)
-            if top
-            else 0.0
-        ),
+        "judged_count": judged_count,
+        "grade0_count": grade0_count,
+        "judged_fraction": judged_count / len(top) if top else 0.0,
         "unjudged_count": len(unjudged),
         "provisional": bool(unjudged),
     }
@@ -108,6 +112,7 @@ def evaluate_ranked_results(
     first_relevant_rank = None
     unjudged_count = 0
     judged_count = 0
+    grade0_count = 0
     relevant_chunk_count = 0
     for rank, item in enumerate(top, start=1):
         matched_ids = set(item.get("matched_evidence_ids") or [])
@@ -116,6 +121,13 @@ def evaluate_ranked_results(
             unjudged_count += 1
         else:
             judged_count += 1
+            matched_grades = [
+                qrels[evidence_id]
+                for evidence_id in matched_ids
+                if evidence_id in qrels
+            ]
+            if matched_grades and all(grade == 0 for grade in matched_grades):
+                grade0_count += 1
 
         newly_relevant = matched_groups.intersection(relevant_groups).difference(covered)
         if newly_relevant and first_relevant_rank is None:
@@ -140,6 +152,8 @@ def evaluate_ranked_results(
         "precision": relevant_chunk_count / k,
         "reciprocal_rank": 1.0 / first_relevant_rank if first_relevant_rank else 0.0,
         "ndcg": dcg / ideal_dcg if ideal_dcg > 0 else 0.0,
+        "judged_count": judged_count,
+        "grade0_count": grade0_count,
         "judged_fraction": judged_count / top_count if top_count else 0.0,
         "unjudged_count": unjudged,
         "provisional": bool(unjudged),

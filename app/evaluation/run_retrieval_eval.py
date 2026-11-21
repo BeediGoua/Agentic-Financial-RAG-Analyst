@@ -66,12 +66,16 @@ def validate_config(config: dict) -> dict:
 
 
 def resolve_benchmark_top_k(config: dict, cli_top_k: int | None) -> tuple[int, list[int]]:
-    """CLI --top-k overrides YAML k_values; no CLI value means YAML is authoritative."""
+    """Keep every reported @K within the effective retrieval cutoff."""
     k_values = list(config["benchmark"]["k_values"])
     if cli_top_k is not None:
         if cli_top_k <= 0:
             raise ValueError("--top-k must be a positive integer")
-        return cli_top_k, sorted(set(k_values + [cli_top_k]))
+        effective_k_values = sorted({
+            k for k in k_values
+            if k <= cli_top_k
+        } | {cli_top_k})
+        return cli_top_k, effective_k_values
     top_k = max(k_values)
     return top_k, sorted(set(k_values))
 
