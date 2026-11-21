@@ -48,6 +48,19 @@ def test_empty_and_unjudged_results():
     assert provisional["judged_fraction"] == 0.5
 
 
+def test_grade_zero_is_judged_not_unjudged():
+    judged = evaluate_ranked_query(
+        ["X", "A"],
+        {"X": 0, "A": 3},
+        k=2,
+    )
+    assert judged["grade0_count"] == 1
+    assert judged["judged_count"] == 2
+    assert judged["judged_fraction"] == 1.0
+    assert judged["unjudged_count"] == 0
+    assert judged["provisional"] is False
+
+
 def test_evidence_coverage_and_macro_aggregation():
     coverage = evidence_coverage(
         ["E1", "E3"],

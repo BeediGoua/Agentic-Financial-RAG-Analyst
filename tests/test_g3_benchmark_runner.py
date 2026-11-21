@@ -1,7 +1,9 @@
+import pytest
+
 from app.evaluation.corpus import build_corpus_manifest
 from app.evaluation.runner import BenchmarkRunner, FixtureRetriever
 from app.evaluation.schemas import GoldQuestion
-from app.evaluation.run_retrieval_eval import main
+from app.evaluation.run_retrieval_eval import main, resolve_benchmark_top_k
 import sys
 
 
@@ -94,3 +96,31 @@ def test_real_mode_without_corpus_is_not_ready(tmp_path, monkeypatch):
         ],
     )
     assert main() == 2
+
+
+def test_top_k_contract_never_reports_k_above_cutoff():
+    config = {"benchmark": {"k_values": [1, 5, 10, 20]}}
+    top_k, k_values = resolve_benchmark_top_k(config, cli_top_k=3)
+    assert top_k == 3
+    assert k_values == [1, 3]
+
+    top_k, k_values = resolve_benchmark_top_k(config, cli_top_k=None)
+    assert top_k == 20
+    assert k_values == [1, 5, 10, 20]
+
+
+def test_runner_rejects_k_values_above_top_k():
+    question = fixture_question()
+    runner = BenchmarkRunner(
+        retrievers={"bm25": FixtureRetriever({})},
+        corpus_snapshot=build_corpus_manifest(documents=[]),
+    )
+    with pytest.raises(ValueError, match="k_value"):
+        runner.run(
+            [question],
+            strategies=["recursive_fixed"],
+            models=["mini_lm_multilingual"],
+            methods=["bm25"],
+            top_k=5,
+            k_values=[1, 10],
+        )

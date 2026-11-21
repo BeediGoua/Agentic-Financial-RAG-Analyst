@@ -110,11 +110,8 @@ def resolve_document_sha256(
 
 
 def sha256_file(path: str | Path) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    from app.core.document_hash import sha256_file as cached_sha256_file
+    return cached_sha256_file(path)
 
 
 def _hash_manifest_files(paths: Iterable[Path]) -> list[str]:

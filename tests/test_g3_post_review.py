@@ -3,6 +3,7 @@ import json
 import pytest
 
 from app.chunking.schemas import TextChunk
+from app.core.document_hash import _sha256_cached
 from app.embeddings.schemas import EmbeddingRecord
 from app.evaluation.corpus import build_document_registry, normalize_document_path, sha256_file
 from app.evaluation.metrics import evaluate_ranked_results
@@ -81,9 +82,27 @@ def test_unjudged_chunk_visible_and_counted():
     assert metrics["provisional"] is True
 
 
+def test_grade_zero_chunk_is_explicitly_judged():
+    results = [
+        make_enriched("C0", ["E0"], ["G0"]),
+        make_enriched("C1", [], []),
+    ]
+    metrics = evaluate_ranked_results(
+        results,
+        {"G0": {"E0"}, "G1": {"E1"}},
+        {"E0": 0, "E1": 3},
+        k=2,
+    )
+    assert metrics["grade0_count"] == 1
+    assert metrics["judged_count"] == 1
+    assert metrics["judged_fraction"] == 0.5
+    assert metrics["unjudged_count"] == 1
+
+
 def test_document_registry_and_schema_hash_propagation(tmp_path):
     pdf = tmp_path / "report.pdf"
     pdf.write_bytes(b"%PDF-synthetic")
+    _sha256_cached.cache_clear()
     digest = sha256_file(pdf)
     manifest = tmp_path / "report.pdf.manifest.json"
     manifest.write_text(json.dumps({
@@ -111,7 +130,6 @@ def test_document_registry_and_schema_hash_propagation(tmp_path):
         vector_dimension=2,
         embedding=[1.0, 0.0],
         source_pdf=str(pdf),
-        document_sha256=chunk.document_sha256,
         text="passage",
     )
     vector = VectorMetadata(
@@ -120,7 +138,9 @@ def test_document_registry_and_schema_hash_propagation(tmp_path):
         chunking_strategy="page_aware",
         embedding_model="fake",
         source_pdf=str(pdf),
-        document_sha256=embedding.document_sha256,
         text="passage",
     )
     assert chunk.document_sha256 == embedding.document_sha256 == vector.document_sha256 == digest
+    cache_info = _sha256_cached.cache_info()
+    assert cache_info.misses == 1
+    assert cache_info.hits >= 3
