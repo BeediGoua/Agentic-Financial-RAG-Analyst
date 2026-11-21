@@ -3,11 +3,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
 
 from app.embeddings.models import get_model_config
 from app.embeddings.schemas import EmbeddingRecord
+from app.core.artifact_cache import (
+    artifact_cache_valid,
+    build_fingerprint,
+    write_artifact_manifest,
+)
+from app.core.atomic import atomic_text_writer
 
 
 class ChunkEmbedder:
@@ -85,9 +94,26 @@ class ChunkEmbedder:
         force: bool = False,
     ) -> dict:
         output_path = self.build_output_path(chunk_file, model_key)
+        config = get_model_config(model_key)
+        fingerprint = build_fingerprint(
+            source_path=chunk_file,
+            stage="embeddings",
+            params={
+                "model_key": model_key,
+                "model_name": config["model_name"],
+                "revision": config["revision"],
+                "passage_prefix": config["passage_prefix"],
+                "batch_size": self.batch_size,
+                "companies": sorted(companies or []),
+                "years": sorted(years or []),
+            },
+        )
 
-        if output_path.exists() and not force:
-            # On compte les lignes pour garder un rapport précis même si on skip
+        if (
+            output_path.exists()
+            and not force
+            and artifact_cache_valid(output_path, fingerprint)
+        ):
             count = 0
             try:
                 with output_path.open("r", encoding="utf-8") as f:
@@ -95,8 +121,6 @@ class ChunkEmbedder:
                         count += 1
             except Exception:
                 count = 0
-
-            config = get_model_config(model_key)
             return {
                 "status": "already_exists",
                 "model": model_key,
@@ -107,6 +131,11 @@ class ChunkEmbedder:
             }
 
         config = get_model_config(model_key)
+        if SentenceTransformer is None:
+            raise RuntimeError(
+                "SentenceTransformer is unavailable; install sentence-transformers "
+                "to build real embeddings"
+            )
         model = SentenceTransformer(
             config["model_name"],
             revision=config["revision"],
@@ -136,6 +165,25 @@ class ChunkEmbedder:
             show_progress_bar=True,
             normalize_embeddings=True,
         )
+        import numpy as np
+        embeddings = np.asarray(embeddings, dtype=np.float32)
+        if embeddings.ndim != 2:
+            raise ValueError("Embedding matrix must be two-dimensional")
+        if embeddings.shape[0] != len(chunks):
+            raise ValueError(
+                f"Embedding count mismatch: {embeddings.shape[0]} vectors "
+                f"for {len(chunks)} chunks"
+            )
+        if embeddings.shape[1] != int(config["dimension"]):
+            raise ValueError(
+                f"Embedding dimension mismatch: expected {config['dimension']}, "
+                f"got {embeddings.shape[1]}"
+            )
+        if not np.isfinite(embeddings).all():
+            raise ValueError("Embedding contains NaN or infinite values")
+        norms = np.linalg.norm(embeddings, axis=1)
+        if not np.isfinite(norms).all() or np.any(norms <= 0):
+            raise ValueError("Embedding contains a zero or invalid vector")
 
         records = []
 
@@ -168,9 +216,10 @@ class ChunkEmbedder:
 
             records.append(record)
 
-        with output_path.open("w", encoding="utf-8") as f:
+        with atomic_text_writer(output_path) as f:
             for record in records:
                 f.write(record.model_dump_json() + "\n")
+        write_artifact_manifest(output_path, fingerprint)
 
         return {
             "status": "success",

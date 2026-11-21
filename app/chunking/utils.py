@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from app.core.atomic import atomic_text_writer
+
 
 def load_jsonl(path: Path) -> list[dict]:
     rows = []
@@ -22,8 +24,7 @@ def load_jsonl(path: Path) -> list[dict]:
 
 def write_jsonl(path: Path, rows: list) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-
-    with path.open("w", encoding="utf-8") as f:
+    with atomic_text_writer(path) as f:
         for row in rows:
             if hasattr(row, "model_dump_json"):
                 f.write(row.model_dump_json() + "\n")
@@ -164,8 +165,17 @@ def recursive_split_text(
 
     raw_chunks = split_recursive(text, separators)
 
+    overlapped_chunks = []
     for chunk in raw_chunks:
         if chunk:
-            chunks.append(chunk.strip())
+            chunk = chunk.strip()
+            if overlapped_chunks and chunk_overlap > 0:
+                prefix = overlapped_chunks[-1][-chunk_overlap:]
+                combined = (prefix + " " + chunk).strip()
+                if len(combined) <= chunk_size:
+                    chunk = combined
+            overlapped_chunks.append(chunk)
+
+    chunks = overlapped_chunks
 
     return chunks

@@ -28,7 +28,7 @@ class ChunkQuality:
         if total_outputs == 0 or total_chunks == 0:
             status = "FAIL"
         elif errors > 0:
-            status = "WARNING"
+            status = "FAIL"
 
         return {
             "status": status,

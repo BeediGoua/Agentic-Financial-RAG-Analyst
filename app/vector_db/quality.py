@@ -43,7 +43,7 @@ class VectorDBQuality:
             status = "FAIL"
 
         elif error_files > 0:
-            status = "WARNING"
+            status = "FAIL"
 
         return {
             "status": status,
